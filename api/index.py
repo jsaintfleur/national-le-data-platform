@@ -59,10 +59,10 @@ def _boot_line() -> str:
     deployment rather than the sixth.
     """
     facts: dict[str, Any] = {"python": sys.version.split()[0], "cwd": os.getcwd()}
-    for name in ("duckdb", "fastapi", "pydantic", "yaml", "werkzeug"):
+    for name in ("duckdb", "fastapi", "starlette", "pydantic", "yaml", "werkzeug", "anyio"):
         try:
-            __import__(name)
-            facts[name] = "ok"
+            mod = __import__(name)
+            facts[name] = getattr(mod, "__version__", "ok")
         except Exception as exc:  # noqa: BLE001
             facts[name] = type(exc).__name__
     db = Path(os.environ["NLEDP_DB_PATH"])
@@ -152,7 +152,32 @@ if _startup_error is None:
         traceback.print_exc()
 
 
-# One top-level binding. Vercel scans module scope for it before any Python runs; a
-# definition nested in a try or an if is invisible to that scan and the build fails with
-# "the pattern api/index.py doesn't match any Serverless Functions inside the api directory".
-app = _app if _startup_error is None else _diagnostic_app(_startup_report())
+_served = _app if _startup_error is None else _diagnostic_app(_startup_report())
+
+
+# One top-level binding, and a coroutine function so the launcher bridges it as ASGI. Vercel
+# scans module scope for it before any Python runs; a definition nested in a try or an if is
+# invisible to that scan and the build fails with "the pattern api/index.py doesn't match any
+# Serverless Functions inside the api directory".
+async def app(scope, receive, send):
+    """Trace one request, and put any failure on stdout.
+
+    Only stdout reaches the platform log — a query for error-level events returns nothing
+    even for invocations that failed — so a traceback written to stderr, which is where
+    Python writes them, is invisible. Every deployment in this series failed with an empty
+    traceback for that reason and no other. Anything raised below here is printed and then
+    re-raised, so the platform still sees a failed invocation.
+    """
+    path = scope.get("path", "?")
+    print(f"nledp-req start {scope.get('method', '?')} {path}", flush=True)
+    try:
+        async def traced_send(message):
+            print(f"nledp-req send {message.get('type')} "
+                  f"{message.get('status', '')}".rstrip(), flush=True)
+            await send(message)
+
+        await _served(scope, receive, traced_send)
+        print(f"nledp-req done {path}", flush=True)
+    except BaseException:
+        print(f"nledp-req FAILED {path}\n{traceback.format_exc()}", flush=True)
+        raise
