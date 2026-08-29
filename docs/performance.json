@@ -1,0 +1,38 @@
+{
+  "overview": {
+    "fcp": 148,
+    "dcl": 64,
+    "load": 64,
+    "transferKB": 531
+  },
+  "baltimore-profile": {
+    "fcp": 68,
+    "dcl": 21,
+    "load": 21,
+    "transferKB": 44
+  },
+  "agencies": {
+    "fcp": 60,
+    "dcl": 19,
+    "load": 20,
+    "transferKB": 59
+  },
+  "map": {
+    "fcp": 72,
+    "dcl": 18,
+    "load": 18,
+    "transferKB": 1776
+  },
+  "quality": {
+    "fcp": 220,
+    "dcl": 183,
+    "load": 183,
+    "transferKB": 117
+  },
+  "compare": {
+    "fcp": 56,
+    "dcl": 24,
+    "load": 24,
+    "transferKB": 34
+  }
+}

@@ -5,19 +5,38 @@ law-enforcement agencies in the United States into one traceable, analytically d
 system. The analytical unit is the **agency, jurisdiction, county, city and state** — never
 an officer, suspect, victim, witness or resident.
 
-**Phase 1 (data foundation) is built and running.** The pipeline ingests thirteen federal
-sources, reconciles 19,902 agency identities, resolves them to Census geography, and
-produces a validated, versioned warehouse. Phase 2 (the web application) is next.
+**Phases 1 and 2 are built and running.** The pipeline ingests thirteen federal sources,
+reconciles 19,902 agency identities, resolves them to Census geography, and produces a
+validated, versioned warehouse. A read-only API and a twelve-route application sit on top of
+it, with a central policy engine deciding what may be published.
 
 ```
 19,902  agencies with a reconciled identity
 72,055  geographies (place, county subdivision, county, state)
 320,190 agency-year crime observations, 2016–2025
-183,391 agency-year staffing observations, 2016–2025
-316,276 population observations across three denominator bases
+183,716 agency-year staffing observations, 2016–2025
+316,276 population observations across four denominator bases
 125,816 government-unit finance observations, FY2022–FY2024
-     0  validation errors · 32 tests passing
+     0  validation errors · 152 tests passing
+     0  WCAG 2.1 AA violations across 10 routes × 2 viewports
 ```
+
+## Run it
+
+```bash
+pip install -e ".[dev]"
+cd web && npm install && npm run build && cd ..
+uvicorn nledp.api.main:app --port 8000        # API and application on one origin
+open http://127.0.0.1:8000
+```
+
+The interface answers ten questions, one per route: what American law enforcement looks like
+nationally, where patterns differ geographically, which agencies match a query, what is known
+about one agency, how it compares with appropriate peers, what a state looks like, how much
+confidence the numbers deserve, how every number is produced, and where each one came from.
+
+Start with [`docs/phase-2-build-report.md`](docs/phase-2-build-report.md) for what was built
+and what is known to be wrong with it.
 
 ---
 
@@ -123,12 +142,25 @@ src/nledp/
   canonical/       dim_* and fact_* builders
   resolution/      agency -> geography, geography -> government
   analytics/       rates, peer cohorts, benchmarks, coverage
+  policy.py        the analytical policy engine — what may be published, and why not
   quality/         23 validation checks -> data_quality_log
+  api/             read-only FastAPI over the analytics layer; no raw tables, no SQL input
+web/src/
+  lib/             typed API client and formatting; a missing value never formats as 0
+  components/      shell, metric tiles with the four trust markers, hand-built SVG charts
+  routes/          the ten screens
 registry/
   sources.yaml     13 sources + 4 deferred, every URL verified by live request
   metrics.yaml     17 metrics + 6 prohibited, each with comparison/ranking permissions
 data/releases/     one manifest per build: source hashes, row counts, validation, git commit
 ```
+
+**The policy engine is the load-bearing piece.** Every question of the form "may this be
+shown?" — can this rate be displayed, can these agencies be compared, does this observation
+have sufficient coverage, is this denominator valid, can a percentile be shown — is answered
+in `src/nledp/policy.py` and nowhere else. The analytics build, the API and the interface all
+read their vocabularies and thresholds from it, so a rate the platform withholds is `null` on
+the wire and cannot be reconstructed by a chart component.
 
 ---
 
@@ -159,6 +191,8 @@ flagged rather than corrected, because those contracts are not in any federal so
 | | |
 |---|---|
 | [`docs/blueprint.md`](docs/blueprint.md) | The full technical blueprint — architecture, data model, resolution strategy, metric framework, roadmap, risks |
+| [`docs/phase-2-build-report.md`](docs/phase-2-build-report.md) | What Phase 2 built, its tests, performance, accessibility, known limitations and methodology decisions |
+| [`docs/reconciliation-staffing-2024.md`](docs/reconciliation-staffing-2024.md) | Why the platform's national sworn total differs from the FBI's, line by line |
 | [`docs/architecture.md`](docs/architecture.md) | Layer boundaries and module map |
 | [`docs/data-model.md`](docs/data-model.md) | Table-by-table schema and grain |
 | [`docs/data-sources.md`](docs/data-sources.md) | The source matrix, generated from the registry |
