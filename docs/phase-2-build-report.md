@@ -2,7 +2,7 @@
 
 **Data release** `release_2026_08_29_006` · built 2026-08-29 · commit `2f84a08`
 **Application build** `web/dist`, 4.16 MB total · Vite + React 19 + TypeScript
-**Tests** 124 unit / integration + 28 end-to-end = **152 passing**
+**Tests** 146 unit / integration / deployment + 28 end-to-end = **174 passing**
 **Accessibility** 0 WCAG 2.1 AA violations across 20 page-viewport combinations
 **Validation** 0 errors · 5,065 warnings · 30,293 informational
 
@@ -338,6 +338,65 @@ Each of these was a decision, not a default, and each is enforced somewhere test
 
 ---
 
+## 12. Deployment
+
+The platform deploys as a static application on a CDN plus one Python serverless function
+reading a committed, read-only database. There is no database server, because a release is
+immutable and a serving artifact can therefore be a file.
+
+**The serving database is 47 MB against the warehouse's 164 MB**, and the reduction is not
+compression — it is a scoping decision made explicit. `nledp.api.db.ALLOWED_TABLES` is the
+API's security boundary, and `scripts/build_deploy_db.py` copies exactly that set, so the
+same list is also the deployment manifest. An unused entry costs real megabytes in
+production; a missing one fails the build rather than an endpoint.
+
+What that let us drop, and why it was safe:
+
+| Excluded | Rows | Because |
+|---|---:|---|
+| `fact_crime`, `fact_staffing` | 503,906 | compacted into `analytics_provenance` — 51,246 agency-source pairs answer "where did this come from" as completely as the rows did |
+| `fact_demographics` | 316,276 | its outputs are the denominator columns on `analytics_agency_year` |
+| `fact_reporting` | 15,129 | its outputs are the coverage columns |
+| `fact_finance` | 125,816 | no endpoint serves finance until Phase 3 |
+| `analytics_agency_year_base`, `analytics_agency_population`, `analytics_peer_cohort`, `analytics_peer_benchmarks` | 370,436 | build-time intermediates; the peers endpoint selects its cohort from `analytics_agency_year` directly |
+
+Copying into a fresh file compacts it as a side effect: DuckDB never shrinks in place, so the
+free pages left by an analytics rebuild's `DROP`/`CREATE` cycles are dropped.
+
+**Three defects surfaced while making it deployable**, each of which would have been
+production-only:
+
+1. **The SPA catch-all shadowed the API.** FastAPI matches routes in registration order, and
+   `/{full_path:path}` was registered before `/api/health` — so a health check returned the
+   application's HTML with a 200. The catch-all now refuses `api/` paths outright, and a test
+   asserts the registration order.
+2. **DuckDB aborted the process at teardown.** Its C++ destructors ran after Python began
+   dismantling the threads that owned them. Harmless at the end of a script; not harmless in
+   a runtime that reads the exit code. Connections now close explicitly on lifespan shutdown
+   and at `atexit`.
+3. **The headline staffing year drifted to 2025.** Removing the fact tables changed how the
+   year was derived, and 2025 staffing exists but covers 12,827 agencies against 19,343 in
+   2024 — publishing it as a national total would have reported a workforce shrinking by a
+   third. It is now pinned to `VINTAGES["pe_master_last_good"]`, the same year the
+   reconciliation ledger is computed for, because the headline and its ledger must describe
+   the same year.
+
+**The deployment contract is tested, not just documented** — `tests/test_deployment.py`, 22
+assertions: the artifact contains exactly `ALLOWED_TABLES` and no `fact_` table; it fits
+GitHub's file limit; it carries a release built from a real commit and zero validation
+errors; all five regression fixtures survive compaction; every agency with an observation
+still resolves a provenance record; `vercel.json` routes the API before the SPA fallback and
+excludes the static directories from it; `requirements.txt` carries no pipeline-only
+dependency; and `api/index.py` sets `NLEDP_DB_PATH` before importing `nledp.config` and adds
+no routes of its own.
+
+**Bundle budget.** duckdb ≈ 30 MB, fastapi + pydantic + PyYAML ≈ 25 MB, database 47 MB —
+about 102 MB against Vercel's 250 MB uncompressed limit.
+
+Full detail: [`docs/deployment.md`](deployment.md).
+
+---
+
 ## 11. Release identifiers
 
 ```
@@ -345,6 +404,7 @@ Data release        release_2026_08_29_006   built 2026-08-29T17:27:11Z   commit
 Application build   web/dist                 4.16 MB
 Warehouse           data/warehouse/nledp.duckdb   112 MB
 Source artifacts    263 MB across 80 hashed files
+Serving database    data/deploy/nledp-api.duckdb   47 MB, committed
 Reconciliation      docs/reconciliation-staffing-2024.md
 Screenshots         docs/screenshots/ (19 files, desktop and mobile)
 Performance         docs/performance.json
@@ -355,6 +415,9 @@ Run it:
 
 ```bash
 uvicorn nledp.api.main:app --port 8000     # serves the API and the built application
-pytest tests --ignore=tests/e2e            # 124 unit and integration tests
+pytest tests --ignore=tests/e2e            # 146 unit, API and deployment tests
 pytest tests/e2e                           # 28 release-gate tests, needs the server running
+
+nledp deploy-db                            # rebuild the 47 MB serving artifact
+NLEDP_DB_PATH=data/deploy/nledp-api.duckdb uvicorn nledp.api.main:app --port 8000
 ```

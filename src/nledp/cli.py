@@ -129,6 +129,26 @@ def status() -> None:
     con.close()
 
 
+@app.command("deploy-db")
+def deploy_db(
+    out: str = typer.Option("", help="Output path; defaults to data/deploy/nledp-api.duckdb"),
+    verify: bool = typer.Option(True, help="Query the result before declaring success."),
+) -> None:
+    """Build the serving database: exactly the tables the API reads, compacted.
+
+    This is the deployment artifact. The full warehouse stays local.
+    """
+    import subprocess
+    import sys
+
+    cmd = [sys.executable, str(settings.root / "scripts" / "build_deploy_db.py")]
+    if out:
+        cmd += ["--out", out]
+    if verify:
+        cmd += ["--verify"]
+    raise typer.Exit(subprocess.call(cmd))
+
+
 @app.command()
 def query(sql: str) -> None:
     """Run one SQL statement against the warehouse."""
