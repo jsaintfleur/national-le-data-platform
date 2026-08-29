@@ -209,19 +209,17 @@ class TestFunctionBundle:
         for needed in ("duckdb", "fastapi", "pydantic", "yaml"):
             assert needed in reqs, f"{needed} is imported by the API"
 
-    def test_the_asgi_launcher_dependency_is_present(self):
-        """Vercel's Python launcher imports werkzeug to build its ASGI bridge.
+    def test_no_dependency_is_carried_for_vercels_launcher(self):
+        """werkzeug belongs here only if the entry point exposes ``app``.
 
-        Nothing in this repository imports it, so it reads as a stray dependency and an
-        attentive cleanup would delete it. The cost of that mistake is disproportionate: the
-        function prints "using ASGI" and then dies at handler init with
-        FUNCTION_INVOCATION_FAILED and an empty traceback, because the ImportError happens
-        inside the launcher, before the application is reached and outside every error
-        handler it defines. It cost several deployments to find.
+        It is required by the launcher's WSGI and ASGI branches, not by anything in this
+        repository. api/index.py exposes ``handler`` instead, whose branch is pure standard
+        library, so the dependency should not be here. If a future change goes back to
+        ``app``, this test and its neighbour above will disagree, which is the point.
         """
-        assert "werkzeug" in REQUIREMENTS.read_text().lower(), (
-            "werkzeug is required by Vercel's ASGI launcher even though this application "
-            "never imports it")
+        assert "werkzeug" not in REQUIREMENTS.read_text().lower(), (
+            "werkzeug is only needed by the launcher's app branches; this deployment uses "
+            "the handler branch")
 
     def test_every_requirement_is_version_bounded(self):
         for line in REQUIREMENTS.read_text().splitlines():
@@ -249,31 +247,43 @@ class TestFunctionBundle:
         assert setdefault_line < import_line, (
             "NLEDP_DB_PATH is set after nledp is imported; the setting will not take effect")
 
-    def test_app_is_bound_at_module_level(self):
-        """Vercel decides whether api/index.py is a Serverless Function by scanning for a
-        top-level ``app`` binding before any Python runs. Defining it only inside a ``try``
-        or an ``if`` is valid Python and invisible to that scan: the build fails with "the
-        pattern api/index.py doesn't match any Serverless Functions inside the api
-        directory" while the file sits in the repository, which is a genuinely confusing
-        thing to debug. This asserts the binding is at column zero.
+    def test_the_vercel_entry_point_is_bound_at_module_level(self):
+        """Vercel decides what kind of function this file is by scanning its module scope
+        before any Python runs, looking for ``handler``/``Handler`` first and then ``app``.
+
+        A binding nested inside a ``try`` or an ``if`` is valid Python and invisible to that
+        scan: the build fails with "the pattern api/index.py doesn't match any Serverless
+        Functions inside the api directory" while the file sits in the repository under the
+        right name. This asserts the binding is at column zero.
         """
         tree = ast.parse(ENTRY.read_text())
-        bound = any(
-            isinstance(node, (ast.Assign, ast.AnnAssign, ast.FunctionDef, ast.AsyncFunctionDef,
-                              ast.ImportFrom))
-            and (
-                any(isinstance(t, ast.Name) and t.id == "app"
-                    for t in getattr(node, "targets", []))
-                or getattr(getattr(node, "target", None), "id", None) == "app"
-                or getattr(node, "name", None) == "app"
-                or any(a.asname == "app" or (a.asname is None and a.name == "app")
-                       for a in getattr(node, "names", []))
-            )
-            for node in tree.body  # tree.body only — module level, not nested
-        )
-        assert bound, (
-            "api/index.py must bind `app` at module level, or Vercel will not recognise it "
-            "as a Serverless Function and the build fails before Python ever runs")
+        names = set()
+        for node in tree.body:  # module scope only — nested definitions do not count
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                names.add(node.name)
+            elif isinstance(node, ast.Assign):
+                names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                names.add(node.target.id)
+            elif isinstance(node, ast.ImportFrom):
+                names.update(a.asname or a.name for a in node.names)
+        assert names & {"handler", "Handler", "app"}, (
+            "api/index.py must bind handler or app at module level, or Vercel will not "
+            "recognise it as a Serverless Function and the build fails before Python runs")
+
+    def test_the_entry_point_uses_the_stdlib_handler_branch(self):
+        """The entry point must expose ``handler``, not ``app``.
+
+        Vercel's launcher bridges an ``app`` through werkzeug, which nothing in this
+        deployment declares or installs. When it is missing the launcher prints "using ASGI"
+        and dies at handler init with no traceback, because the failure is inside the
+        launcher rather than the application — an expensive silence to debug. The
+        ``handler`` branch imports only the standard library, so this deployment depends on
+        exactly what it declares.
+        """
+        tree = ast.parse(ENTRY.read_text())
+        classes = {n.name for n in tree.body if isinstance(n, ast.ClassDef)}
+        assert "handler" in classes, "api/index.py must define a module-level handler class"
 
     def test_the_entry_point_adds_no_routes_of_its_own(self):
         """The deployed API and the local one must be the same application. A route defined

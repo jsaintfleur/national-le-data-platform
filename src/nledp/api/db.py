@@ -58,15 +58,30 @@ def _serverless_config() -> dict[str, str]:
     }
 
 
+_root: duckdb.DuckDBPyConnection | None = None
+
+
 def conn() -> duckdb.DuckDBPyConnection:
-    """One connection per thread. DuckDB connections are not thread-safe to share."""
+    """One handle per thread, all sharing a single open database.
+
+    DuckDB handles are not thread-safe to share, but opening the file again per thread is
+    the wrong fix: the serverless runtime gives each request its own thread, so a warm
+    container would accumulate one full open of a 47 MB file per request until it was
+    recycled. ``cursor()`` is DuckDB's answer — an independent handle onto the database
+    instance that is already open.
+    """
+    global _root
     c = getattr(_local, "con", None)
-    if c is None:
-        c = duckdb.connect(str(settings.db_path), read_only=True,
-                           config=_serverless_config())
-        _local.con = c
-        with _conn_lock:
-            _all_conns.append(c)
+    if c is not None:
+        return c
+    with _conn_lock:
+        if _root is None:
+            _root = duckdb.connect(str(settings.db_path), read_only=True,
+                                   config=_serverless_config())
+            _all_conns.append(_root)
+        c = _root.cursor()
+        _all_conns.append(c)
+    _local.con = c
     return c
 
 
@@ -84,6 +99,8 @@ def close_all() -> None:
                 _all_conns.pop().close()
             except Exception:  # noqa: BLE001 - shutdown must not raise
                 pass
+    global _root
+    _root = None
     _local.__dict__.pop("con", None)
 
 
