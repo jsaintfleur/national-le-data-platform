@@ -2,3 +2,11 @@ duckdb>=1.1,<2
 fastapi>=0.115,<1
 pydantic>=2.7,<3
 PyYAML>=6.0,<7
+
+# Imported by Vercel's Python launcher (vc__handler__python.py) to build its ASGI bridge,
+# not by any code in this repository. It therefore looks unused, and removing it is
+# invisible until deploy: the function prints "using ASGI", then dies at handler init with
+# FUNCTION_INVOCATION_FAILED and no traceback, because the failure happens inside the
+# launcher — before the application is reached, and outside every error handler it has.
+# Do not remove as unused. See TestFunctionBundle in tests/test_deployment.py.
+Werkzeug>=3.0,<4

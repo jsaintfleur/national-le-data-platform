@@ -209,6 +209,20 @@ class TestFunctionBundle:
         for needed in ("duckdb", "fastapi", "pydantic", "yaml"):
             assert needed in reqs, f"{needed} is imported by the API"
 
+    def test_the_asgi_launcher_dependency_is_present(self):
+        """Vercel's Python launcher imports werkzeug to build its ASGI bridge.
+
+        Nothing in this repository imports it, so it reads as a stray dependency and an
+        attentive cleanup would delete it. The cost of that mistake is disproportionate: the
+        function prints "using ASGI" and then dies at handler init with
+        FUNCTION_INVOCATION_FAILED and an empty traceback, because the ImportError happens
+        inside the launcher, before the application is reached and outside every error
+        handler it defines. It cost several deployments to find.
+        """
+        assert "werkzeug" in REQUIREMENTS.read_text().lower(), (
+            "werkzeug is required by Vercel's ASGI launcher even though this application "
+            "never imports it")
+
     def test_every_requirement_is_version_bounded(self):
         for line in REQUIREMENTS.read_text().splitlines():
             line = line.split("#")[0].strip()
