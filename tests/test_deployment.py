@@ -165,6 +165,14 @@ class TestVercelConfig:
             assert prefix in fallback["source"], (
                 f"/{prefix} would be swallowed by the SPA fallback")
 
+    def test_include_files_is_a_glob_string_not_a_list(self, cfg):
+        """vercel.json's functions.includeFiles is a string. A list is rejected during config
+        validation, before the build starts, so the failure arrives as a deployment with no
+        build log at all — which is considerably harder to read than a build error."""
+        include = cfg["functions"]["api/index.py"]["includeFiles"]
+        assert isinstance(include, str), (
+            "includeFiles must be a glob string; a list fails config validation")
+
     def test_the_function_includes_the_serving_database(self, cfg):
         include = cfg["functions"]["api/index.py"]["includeFiles"]
         assert "data/deploy/**" in include, "the function would deploy without its database"
