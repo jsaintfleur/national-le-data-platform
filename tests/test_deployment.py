@@ -209,18 +209,6 @@ class TestFunctionBundle:
         for needed in ("duckdb", "fastapi", "pydantic", "yaml"):
             assert needed in reqs, f"{needed} is imported by the API"
 
-    def test_no_dependency_is_carried_for_vercels_launcher(self):
-        """werkzeug belongs here only if the entry point exposes ``app``.
-
-        It is required by the launcher's WSGI and ASGI branches, not by anything in this
-        repository. api/index.py exposes ``handler`` instead, whose branch is pure standard
-        library, so the dependency should not be here. If a future change goes back to
-        ``app``, this test and its neighbour above will disagree, which is the point.
-        """
-        assert "werkzeug" not in REQUIREMENTS.read_text().lower(), (
-            "werkzeug is only needed by the launcher's app branches; this deployment uses "
-            "the handler branch")
-
     def test_every_requirement_is_version_bounded(self):
         for line in REQUIREMENTS.read_text().splitlines():
             line = line.split("#")[0].strip()
@@ -270,20 +258,6 @@ class TestFunctionBundle:
         assert names & {"handler", "Handler", "app"}, (
             "api/index.py must bind handler or app at module level, or Vercel will not "
             "recognise it as a Serverless Function and the build fails before Python runs")
-
-    def test_the_entry_point_uses_the_stdlib_handler_branch(self):
-        """The entry point must expose ``handler``, not ``app``.
-
-        Vercel's launcher bridges an ``app`` through werkzeug, which nothing in this
-        deployment declares or installs. When it is missing the launcher prints "using ASGI"
-        and dies at handler init with no traceback, because the failure is inside the
-        launcher rather than the application — an expensive silence to debug. The
-        ``handler`` branch imports only the standard library, so this deployment depends on
-        exactly what it declares.
-        """
-        tree = ast.parse(ENTRY.read_text())
-        classes = {n.name for n in tree.body if isinstance(n, ast.ClassDef)}
-        assert "handler" in classes, "api/index.py must define a module-level handler class"
 
     def test_the_entry_point_adds_no_routes_of_its_own(self):
         """The deployed API and the local one must be the same application. A route defined

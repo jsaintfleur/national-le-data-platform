@@ -1,22 +1,12 @@
 """Vercel serverless entry point for the analytical API.
 
-This file exposes ``handler``, a plain ``BaseHTTPRequestHandler``, and drives the FastAPI
-application through a small ASGI bridge of its own. That is a deliberate choice over
-exposing ``app`` and letting Vercel's launcher do the bridging.
+Vercel's launcher scans this module's scope for ``app`` and bridges it as ASGI. That scan
+happens before any Python runs, so the binding at the bottom must stay at column zero: a
+definition nested in a ``try`` or an ``if`` is invisible to it and the build fails with "the
+pattern api/index.py doesn't match any Serverless Functions inside the api directory" while
+the file sits in the repository under the right name.
 
-Vercel's launcher has three branches. The ``app`` branches — WSGI and ASGI — both import
-werkzeug, which is not declared anywhere the deployment installs from. When it is absent the
-launcher prints "using Asynchronous Server Gateway Interface (ASGI)" and then dies at handler
-init: FUNCTION_INVOCATION_FAILED, no traceback, because the failure is inside the launcher,
-before the application is reached and outside every error handler the application defines.
-Several deployments were spent reading that silence. The ``handler`` branch imports nothing
-but the standard library, so this file depends only on what it declares.
-
-The bridge also means a broken deployment can explain itself. If the application cannot be
-imported — a missing dependency, a missing database — ``handler`` still runs, because it
-needs nothing but the standard library, and returns the reason as JSON.
-
-The rest is about the difference between a laptop and a read-only filesystem:
+The rest is about the difference between a laptop and a read-only Lambda filesystem:
 
 * The serving database is the compacted, API-only file built by
   ``scripts/build_deploy_db.py`` — 47 MB against the full warehouse's 164 MB.
@@ -25,29 +15,21 @@ The rest is about the difference between a laptop and a read-only filesystem:
 * ``HOME`` is assigned, not defaulted: the runtime sets it to a path under /home that does
   not exist and is not writable, so a default would never apply and DuckDB would try to put
   its extension directory there.
+
+This module also prints two things to stdout at import: a line of environment facts, and the
+result of opening the database. Both are here because a long run of deployments failed with
+FUNCTION_INVOCATION_FAILED and an empty traceback — failures outside the application, which
+no error handler inside it could see. Standard output does reach the platform log, so these
+lines are the difference between a diagnosis and a guess. They cost one line each.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
-import socket
 import sys
 import traceback
-from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
-
-# The launcher constructs HTTPServer(('127.0.0.1', 0), handler) immediately after choosing
-# this branch. http.server's server_bind then calls socket.getfqdn(host), a reverse DNS
-# lookup. There is no resolver in this runtime, so that call blocks until the function's
-# 30-second limit and the invocation is killed — no traceback, because nothing raised.
-# This module is executed before the launcher builds that server, which makes here the only
-# place the lookup can be pre-empted. The name is used for nothing but HTTPServer's
-# server_name attribute.
-_real_getfqdn = socket.getfqdn
-socket.getfqdn = lambda name="": "localhost"  # type: ignore[assignment]
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -120,98 +102,57 @@ def _startup_report() -> dict[str, Any]:
     }
 
 
-def _run_asgi(scope: dict, body: bytes) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
-    """Drive one request through the ASGI application and collect the response.
+def _diagnostic_app(detail: dict[str, Any]):
+    """An ASGI app that reports why the real one could not start."""
+    body = json.dumps(detail, indent=2).encode()
 
-    Deliberately minimal: one request, one response, no streaming and no lifespan. The
-    serverless invocation model is a single request per call, and the application's lifespan
-    only closes DuckDB connections, which must not happen between requests on a warm
-    container.
-    """
-    status = 500
-    headers: list[tuple[bytes, bytes]] = []
-    chunks: list[bytes] = []
-    received = False
-
-    async def receive() -> dict:
-        nonlocal received
-        if received:
-            return {"type": "http.disconnect"}
-        received = True
-        return {"type": "http.request", "body": body, "more_body": False}
-
-    async def send(message: dict) -> None:
-        nonlocal status, headers
-        if message["type"] == "http.response.start":
-            status = message["status"]
-            headers = [(bytes(k), bytes(v)) for k, v in message.get("headers", [])]
-        elif message["type"] == "http.response.body":
-            chunks.append(message.get("body", b"") or b"")
-
-    asyncio.run(_app(scope, receive, send))
-    return status, headers, b"".join(chunks)
-
-
-class handler(BaseHTTPRequestHandler):  # noqa: N801 - Vercel looks for this exact name
-    protocol_version = "HTTP/1.1"
-
-    def log_message(self, fmt: str, *args: Any) -> None:
-        """The platform already logs the request line; this would duplicate every one."""
-
-    def _serve(self, method: str) -> None:
-        if _app is None:
-            payload = json.dumps(_startup_report(), indent=2).encode()
-            self._write(500, [(b"content-type", b"application/json"),
-                              (b"cache-control", b"no-store")], payload)
+    async def diagnostic(scope, receive, send):
+        if scope["type"] != "http":
             return
+        await send({"type": "http.response.start", "status": 500,
+                    "headers": [(b"content-type", b"application/json"),
+                                (b"cache-control", b"no-store")]})
+        await send({"type": "http.response.body", "body": body})
 
-        length = int(self.headers.get("content-length") or 0)
-        body = self.rfile.read(length) if length else b""
-        split = urlsplit(self.path)
-        scope = {
-            "type": "http",
-            "asgi": {"version": "3.0", "spec_version": "2.1"},
-            "http_version": "1.1",
-            "method": method,
-            "scheme": self.headers.get("x-forwarded-proto", "https"),
-            "path": split.path,
-            "raw_path": split.path.encode(),
-            "query_string": split.query.encode(),
-            "root_path": "",
-            "headers": [(k.lower().encode(), v.encode()) for k, v in self.headers.items()],
-            "client": (self.headers.get("x-forwarded-for", ""), 0),
-            "server": (self.headers.get("host", "lambda"), 443),
-        }
+    return diagnostic
+
+def _probe_database() -> None:
+    """Open the database at import and say so, on stdout.
+
+    Every failure so far has happened on the first request and left nothing behind: both of
+    the launcher's branches die the same way, and the one thing they both do that importing
+    does not is open the database. Doing it here, with a line before and a line after, turns
+    "the request failed" into either a timing or a traceback. The connection is kept, so on
+    a warm container this is also the connection the first request would have opened.
+    """
+    import time
+    for label, cfg in (("with-config", None), ("no-config", {})):
+        start = time.monotonic()
+        print(f"nledp-db {label} opening", flush=True)
         try:
-            status, headers, payload = _run_asgi(scope, body)
-        except Exception:
-            # The application's own handlers cover errors inside a request. This covers the
-            # bridge itself, so a bug here is still readable rather than an empty 500.
-            payload = json.dumps({
-                "error": "the request failed in the ASGI bridge",
-                "traceback": traceback.format_exc(),
-            }, indent=2).encode()
-            status, headers = 500, [(b"content-type", b"application/json")]
-        self._write(status, headers, payload)
+            from nledp.api import db as _db
+            if cfg is None:
+                c = _db.conn()
+            else:
+                import duckdb
+                c = duckdb.connect(os.environ["NLEDP_DB_PATH"], read_only=True, config=cfg)
+            n = c.execute("SELECT count(*) FROM release_manifest").fetchone()[0]
+            print(f"nledp-db {label} ok rows={n} "
+                  f"{(time.monotonic() - start) * 1000:.0f}ms", flush=True)
+            return
+        except Exception as exc:  # noqa: BLE001
+            print(f"nledp-db {label} FAILED {type(exc).__name__}: {exc} "
+                  f"{(time.monotonic() - start) * 1000:.0f}ms", flush=True)
 
-    def _write(self, status: int, headers: list[tuple[bytes, bytes]], body: bytes) -> None:
-        self.send_response(status)
-        for key, value in headers:
-            if key.lower() not in (b"content-length", b"transfer-encoding", b"connection"):
-                self.send_header(key.decode("latin-1"), value.decode("latin-1"))
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        if body:
-            self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler's interface
-        self._serve("GET")
+if _startup_error is None:
+    try:
+        _probe_database()
+    except Exception:  # noqa: BLE001 - a probe must never be why a deploy fails
+        traceback.print_exc()
 
-    def do_HEAD(self) -> None:  # noqa: N802
-        self._serve("HEAD")
 
-    def do_POST(self) -> None:  # noqa: N802
-        self._serve("POST")
-
-    def do_OPTIONS(self) -> None:  # noqa: N802
-        self._serve("OPTIONS")
+# One top-level binding. Vercel scans module scope for it before any Python runs; a
+# definition nested in a try or an if is invisible to that scan and the build fails with
+# "the pattern api/index.py doesn't match any Serverless Functions inside the api directory".
+app = _app if _startup_error is None else _diagnostic_app(_startup_report())
