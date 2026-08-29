@@ -31,12 +31,23 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import socket
 import sys
 import traceback
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+
+# The launcher constructs HTTPServer(('127.0.0.1', 0), handler) immediately after choosing
+# this branch. http.server's server_bind then calls socket.getfqdn(host), a reverse DNS
+# lookup. There is no resolver in this runtime, so that call blocks until the function's
+# 30-second limit and the invocation is killed — no traceback, because nothing raised.
+# This module is executed before the launcher builds that server, which makes here the only
+# place the lookup can be pre-empted. The name is used for nothing but HTTPServer's
+# server_name attribute.
+_real_getfqdn = socket.getfqdn
+socket.getfqdn = lambda name="": "localhost"  # type: ignore[assignment]
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -53,6 +64,35 @@ try:
     from nledp.api.main import app as _app
 except Exception:
     _startup_error = traceback.format_exc()
+
+
+def _boot_line() -> str:
+    """One line of environment facts, printed at import.
+
+    Several deployments failed with FUNCTION_INVOCATION_FAILED and an empty traceback,
+    because the failures were inside the launcher rather than the application and nothing
+    the application could install would catch them. Standard output from this module does
+    reach the platform log — the launcher's own "using ..." line proves it — so the facts
+    go there unconditionally, and a future failure of this kind is readable on the first
+    deployment rather than the sixth.
+    """
+    facts: dict[str, Any] = {"python": sys.version.split()[0], "cwd": os.getcwd()}
+    for name in ("duckdb", "fastapi", "pydantic", "yaml", "werkzeug"):
+        try:
+            __import__(name)
+            facts[name] = "ok"
+        except Exception as exc:  # noqa: BLE001
+            facts[name] = type(exc).__name__
+    db = Path(os.environ["NLEDP_DB_PATH"])
+    facts["db"] = db.stat().st_size if db.exists() else "MISSING"
+    facts["app"] = "imported" if _startup_error is None else "FAILED"
+    return "nledp-boot " + json.dumps(facts, separators=(",", ":"))
+
+
+try:
+    print(_boot_line(), flush=True)
+except Exception:  # noqa: BLE001 - diagnostics must never be the reason a deploy fails
+    traceback.print_exc()
 
 
 def _startup_report() -> dict[str, Any]:
