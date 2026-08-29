@@ -222,6 +222,31 @@ SELECT
 FROM analytics_agency_year
 GROUP BY 1, 2;
 
+-- Provenance, compacted. The API needs to answer "where did this agency's numbers come
+-- from", which is a question about SOURCES, not about individual observations: 51,246
+-- agency-source pairs carry the same answer as 1.2 million fact rows. Precomputing it here
+-- means the serving database never has to contain the fact tables at all, which is the
+-- difference between a deployable artifact and a 160 MB one.
+DROP TABLE IF EXISTS analytics_provenance;
+CREATE TABLE analytics_provenance AS
+SELECT 'staffing' AS measure, agency_id, source_id,
+       min(data_year) AS first_year, max(data_year) AS last_year, count(*) AS observations
+FROM fact_staffing GROUP BY 1,2,3
+UNION ALL
+SELECT 'crime', agency_id, source_id,
+       min(data_year), max(data_year), count(*)
+FROM fact_crime GROUP BY 1,2,3;
+
+DROP TABLE IF EXISTS analytics_source_usage;
+CREATE TABLE analytics_source_usage AS
+SELECT source_id, sum(n) AS observations FROM (
+    SELECT source_id, count(*) AS n FROM fact_crime        GROUP BY 1 UNION ALL
+    SELECT source_id, count(*)      FROM fact_staffing     GROUP BY 1 UNION ALL
+    SELECT source_id, count(*)      FROM fact_demographics GROUP BY 1 UNION ALL
+    SELECT source_id, count(*)      FROM fact_finance      GROUP BY 1 UNION ALL
+    SELECT source_id, count(*)      FROM fact_reporting    GROUP BY 1
+) GROUP BY 1;
+
 DROP TABLE IF EXISTS analytics_reporting_coverage;
 CREATE TABLE analytics_reporting_coverage AS
 SELECT
@@ -257,5 +282,6 @@ def build_analytics(con) -> dict[str, int]:
     names = ["analytics_agency_geography", "analytics_agency_population",
              "analytics_agency_year", "analytics_peer_cohort",
              "analytics_peer_benchmarks", "analytics_state_year",
-             "analytics_reporting_coverage"]
+             "analytics_reporting_coverage", "analytics_provenance",
+             "analytics_source_usage"]
     return {n: con.execute(f"SELECT count(*) FROM {n}").fetchone()[0] for n in names}

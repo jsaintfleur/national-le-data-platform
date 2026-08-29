@@ -33,7 +33,12 @@ class Settings:
     warehouse: Path = field(default_factory=lambda: ROOT / "data" / "warehouse")
     releases: Path = field(default_factory=lambda: ROOT / "data" / "releases")
     registry: Path = field(default_factory=lambda: ROOT / "registry")
-    db_path: Path = field(default_factory=lambda: ROOT / "data" / "warehouse" / "nledp.duckdb")
+    # NLEDP_DB_PATH lets a serving process read a different database from the one the
+    # pipeline builds. In production that is the compacted, API-only file produced by
+    # scripts/build_deploy_db.py; locally it is unset and the full warehouse serves.
+    db_path: Path = field(default_factory=lambda: Path(
+        os.environ.get("NLEDP_DB_PATH")
+        or ROOT / "data" / "warehouse" / "nledp.duckdb"))
 
     # --- Sources -------------------------------------------------------------
     # The unkeyed origin is the CDE web app's own backend. It serves the identical

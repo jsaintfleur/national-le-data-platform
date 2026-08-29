@@ -8,6 +8,16 @@ data/staging/**
 data/warehouse/*.duckdb
 data/warehouse/*.duckdb.wal
 !data/**/.gitkeep
+
+# The compacted serving database IS committed. It is the deployment artifact: 47 MB, one
+# file, regenerated per release by scripts/build_deploy_db.py, and the thing that makes the
+# repository deployable without a database server. The 164 MB full warehouse above is not.
+!data/deploy/nledp-api.duckdb
+data/deploy/*.wal
+
+web/node_modules/
+web/dist/
+.vercel/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/

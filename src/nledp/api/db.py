@@ -20,15 +20,20 @@ from ..config import settings
 
 _local = threading.local()
 
-# The API's read surface. Anything not on this list is not reachable through HTTP.
+# The API's read surface. Anything not on this list is not reachable through HTTP, and
+# scripts/build_deploy_db.py copies exactly this set into the serving database — so the list
+# is both a security boundary and the deployment manifest, and an unused entry costs real
+# megabytes in production. Every table here is queried by at least one endpoint.
 ALLOWED_TABLES = {
-    "analytics_agency_geography", "analytics_agency_population", "analytics_agency_year",
-    "analytics_peer_cohort", "analytics_peer_benchmarks", "analytics_state_year",
-    "analytics_reporting_coverage",
+    "analytics_agency_geography", "analytics_agency_year", "analytics_state_year",
+    "analytics_reporting_coverage", "analytics_provenance", "analytics_source_usage",
     "dim_agency", "dim_geography", "dim_metric", "dim_source", "dim_time",
     "agency_crosswalk", "agency_history", "data_quality_log", "release_manifest",
-    "fact_crime", "fact_staffing", "fact_reporting", "fact_finance", "fact_demographics",
 }
+
+
+_all_conns: list[duckdb.DuckDBPyConnection] = []
+_conn_lock = threading.Lock()
 
 
 def conn() -> duckdb.DuckDBPyConnection:
@@ -37,7 +42,26 @@ def conn() -> duckdb.DuckDBPyConnection:
     if c is None:
         c = duckdb.connect(str(settings.db_path), read_only=True)
         _local.con = c
+        with _conn_lock:
+            _all_conns.append(c)
     return c
+
+
+def close_all() -> None:
+    """Close every connection this process opened.
+
+    Left to the interpreter, DuckDB's C++ destructors run during teardown after Python has
+    begun dismantling the threads that own them, and abort the process. It is harmless at
+    the end of a script and much less harmless in a serverless runtime that reads the exit
+    code, so shutdown is explicit.
+    """
+    with _conn_lock:
+        while _all_conns:
+            try:
+                _all_conns.pop().close()
+            except Exception:  # noqa: BLE001 - shutdown must not raise
+                pass
+    _local.__dict__.pop("con", None)
 
 
 def rows(sql: str, params: list | None = None) -> list[dict]:
@@ -68,8 +92,11 @@ def active_release() -> dict:
 @lru_cache(maxsize=1)
 def latest_years() -> dict:
     return {
-        "crime": scalar("SELECT max(data_year) FROM fact_crime"),
-        "staffing": scalar("SELECT max(data_year) FROM fact_staffing"),
-        "population": scalar("SELECT max(data_year) FROM fact_demographics WHERE basis='pep'"),
-        "finance": scalar("SELECT max(survey_year) FROM fact_finance"),
+        "crime": scalar("SELECT max(data_year) FROM analytics_agency_year "
+                        "WHERE violent_crime_offenses IS NOT NULL"),
+        "staffing": scalar("SELECT max(data_year) FROM analytics_agency_year "
+                           "WHERE sworn_officers IS NOT NULL"),
+        "population": scalar("SELECT max(denominator_year) FROM analytics_agency_year"),
+        "finance": scalar("SELECT max(coverage_end_year) FROM dim_source "
+                          "WHERE source_id = 'census-gov-finance-2024'"),
     }

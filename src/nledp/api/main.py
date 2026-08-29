@@ -10,7 +10,9 @@ render a number without the context that makes it readable.
 """
 from __future__ import annotations
 
+import atexit
 import math
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 import yaml
@@ -26,13 +28,22 @@ from ..policy import (
 )
 from . import db
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    yield
+    db.close_all()
+
+
 app = FastAPI(
     title="National Law Enforcement Data & Intelligence Platform",
     description="Analytical API over the validated warehouse. Read-only.",
     version="0.2.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
+atexit.register(db.close_all)
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"],
 )
@@ -92,17 +103,8 @@ def metrics() -> dict:
 @app.get("/api/sources")
 def sources() -> dict:
     spec = yaml.safe_load((settings.registry / "sources.yaml").read_text())
-    counts = {
-        r["source_id"]: r["n"] for r in db.rows("""
-            SELECT source_id, count(*) AS n FROM (
-                SELECT source_id FROM fact_crime UNION ALL
-                SELECT source_id FROM fact_staffing UNION ALL
-                SELECT source_id FROM fact_demographics UNION ALL
-                SELECT source_id FROM fact_finance UNION ALL
-                SELECT source_id FROM fact_reporting
-            ) GROUP BY 1
-        """)
-    }
+    counts = {r["source_id"]: r["observations"]
+              for r in db.rows("SELECT source_id, observations FROM analytics_source_usage")}
     for s in spec["sources"]:
         s["observations_in_warehouse"] = counts.get(s["source_id"], 0)
     return {
@@ -338,21 +340,27 @@ def agency_metrics(agency_id: str) -> dict:
         "agency_id": agency_id.upper(),
         "series": [scrub(r) for r in series],
         "provenance": {
-            "staffing": _provenance(agency_id, "fact_staffing"),
-            "crime": _provenance(agency_id, "fact_crime"),
+            "staffing": _provenance(agency_id, "staffing"),
+            "crime": _provenance(agency_id, "crime"),
         },
     }
 
 
-def _provenance(agency_id: str, table: str) -> list[dict]:
-    year_col = "data_year"
-    return db.rows(f"""
-        SELECT f.{year_col} AS data_year, f.source_id, s.source_name, s.dataset_name,
-               s.source_url, s.latest_release_date, s.update_frequency, s.license
-        FROM {table} f LEFT JOIN dim_source s ON s.source_id = f.source_id
-        WHERE f.agency_id = ?
-        GROUP BY ALL ORDER BY 1
-    """, [agency_id.upper()])
+def _provenance(agency_id: str, measure: str) -> list[dict]:
+    """Which sources produced this agency's numbers, and over which years.
+
+    Reads the compacted provenance table rather than scanning the fact tables, so the
+    serving database does not need to carry them.
+    """
+    return db.rows("""
+        SELECT p.measure, p.source_id, p.first_year, p.last_year, p.observations,
+               s.source_name, s.dataset_name, s.source_url, s.latest_release_date,
+               s.update_frequency, s.license
+        FROM analytics_provenance p
+        LEFT JOIN dim_source s ON s.source_id = p.source_id
+        WHERE p.agency_id = ? AND p.measure = ?
+        ORDER BY p.last_year, p.source_id
+    """, [agency_id.upper(), measure])
 
 
 @app.get("/api/agencies/{agency_id}/coverage")
@@ -583,14 +591,19 @@ def state(code: str, year: int = CRIME_YEAR) -> dict:
 
 @app.get("/api/overview")
 def overview(year: int = CRIME_YEAR) -> dict:
-    staffing_year = db.scalar(
-        "SELECT max(data_year) FROM fact_staffing WHERE source_id='fbi-ucr-pe-master'")
+    # The headline staffing year is the last year with a complete Police Employee master
+    # file, not simply the last year carrying any staffing value. 2025 staffing exists but
+    # comes only from the NIBRS agency dimension and covers 12,827 agencies against 19,343
+    # in 2024; publishing it as a national total would report a workforce shrinking by a
+    # third. It is also the year the reconciliation ledger is computed for, and the headline
+    # and its ledger must describe the same year.
+    staffing_year = VINTAGES["pe_master_last_good"]
     rel = db.active_release()
 
     headline_staffing = db.one("""
         SELECT count(*) AS agencies, sum(sworn_officers) AS sworn,
                sum(civilian_personnel) AS civilian
-        FROM fact_staffing WHERE data_year = ? AND source_id='fbi-ucr-pe-master'
+        FROM analytics_agency_year WHERE data_year = ? AND sworn_officers IS NOT NULL
     """, [staffing_year])
 
     geo = db.one("""
@@ -914,6 +927,22 @@ def quality_flag_detail(check_id: str, limit: int = Query(200, le=1000)) -> dict
     """, [check_id, limit])}
 
 
+@app.get("/api/health")
+def health() -> dict:
+    """Liveness plus the two facts that make a deployment diagnosable: which database this
+    instance opened, and which release it contains."""
+    from pathlib import Path as _Path
+
+    path = _Path(settings.db_path)
+    return {
+        "ok": True,
+        "database": path.name,
+        "database_bytes": path.stat().st_size if path.exists() else None,
+        "release": db.active_release(),
+        "served_tables": sorted(db.ALLOWED_TABLES),
+    }
+
+
 # ======================================================================================
 # Static frontend
 # ======================================================================================
@@ -934,6 +963,11 @@ if _web_dist.is_dir():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa(full_path: str):
+        # A catch-all must never answer for the API. Any /api path that reaches here is an
+        # endpoint that does not exist, and it should say so rather than returning the
+        # application's HTML with a 200.
+        if full_path.startswith("api/"):
+            raise HTTPException(404, f"No API endpoint at /{full_path}")
         candidate = _web_dist / full_path
         if full_path and candidate.is_file():
             return FileResponse(candidate)
