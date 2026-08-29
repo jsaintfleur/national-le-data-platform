@@ -1,0 +1,53 @@
+─────────────────────── Building release_2026_08_29_006 ────────────────────────
+  dim_source                               13
+  dim_metric                               17
+  dim_time                                 42
+  dim_geography                        72,055
+  dim_agency                           19,902
+  agency_history                          138
+  agency_crosswalk (geography)         19,902
+  fact_staffing                       183,391
+  fact_reporting                       15,129
+  fact_demographics                   316,276
+  fact_finance                        125,816
+  agency_crosswalk (government)        38,427
+  fact_crime                          320,190
+────────────────────────────────── Analytics ───────────────────────────────────
+  analytics_agency_geography           19,902
+  analytics_agency_population         119,310
+  analytics_agency_year               188,853
+  analytics_peer_cohort               137,065
+  analytics_peer_benchmarks               305
+  analytics_state_year                    539
+  analytics_reporting_coverage            539
+────────────────────────────────── Validation ──────────────────────────────────
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
+┃ check                              ┃ severity ┃ rows   ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
+│ agency_id_not_unique               │ error    │ 0      │
+│ invalid_state_fips                 │ error    │ 0      │
+│ geoid_wrong_width                  │ error    │ 0      │
+│ connecticut_legacy_county          │ error    │ 0      │
+│ negative_population                │ error    │ 0      │
+│ nonstandard_state_abbr             │ error    │ 0      │
+│ staffing_year_out_of_range         │ error    │ 0      │
+│ crime_year_beyond_cutoff           │ error    │ 0      │
+│ rate_published_across_years        │ error    │ 0      │
+│ rate_on_unaccepted_link            │ error    │ 0      │
+│ rate_on_ineligible_agency_type     │ error    │ 0      │
+│ finance_fiscal_year_misaligned     │ info     │ 18,563 │
+│ finance_imputed_value              │ info     │ 7,628  │
+│ unresolved_agency_geography        │ info     │ 2,885  │
+│ no_denominator_for_year            │ info     │ 1,127  │
+│ agency_covered_by_parent_ori       │ info     │ 90     │
+│ staffing_dropped_to_zero           │ warning  │ 2,757  │
+│ clearances_exceed_offenses         │ warning  │ 1,074  │
+│ likely_contract_policing           │ warning  │ 607    │
+│ staffing_zero_sworn_with_civilians │ warning  │ 148    │
+│ crime_10x_jump                     │ warning  │ 41     │
+│ negative_crime_count               │ warning  │ 7      │
+│ implausible_violent_rate           │ warning  │ 0      │
+└────────────────────────────────────┴──────────┴────────┘
+
+release_2026_08_29_006 written to 
+/root/nledp/national-le-data-platform/data/releases/release_2026_08_29_006.json
