@@ -30,6 +30,11 @@ uvicorn nledp.api.main:app --port 8000        # API and application on one origi
 open http://127.0.0.1:8000
 ```
 
+The repository is deployable as it stands: the frontend builds to static files and the API
+reads a 47 MB DuckDB file committed at `data/deploy/nledp-api.duckdb`. There is no database
+server, because a release is immutable and a serving artifact can therefore be a file. See
+[`docs/deployment.md`](docs/deployment.md).
+
 The interface answers ten questions, one per route: what American law enforcement looks like
 nationally, where patterns differ geographically, which agencies match a query, what is known
 about one agency, how it compares with appropriate peers, what a state looks like, how much
@@ -199,7 +204,7 @@ flagged rather than corrected, because those contracts are not in any federal so
 | [`docs/methodology.md`](docs/methodology.md) | Denominators, classification, resolution, and what each metric does not mean |
 | [`docs/privacy.md`](docs/privacy.md) | What is included, what is excluded, and why |
 | [`docs/testing.md`](docs/testing.md) | Test strategy and the validation register |
-| [`docs/deployment.md`](docs/deployment.md) | Running the pipeline and cutting a release |
+| [`docs/deployment.md`](docs/deployment.md) | The two databases, cutting a release, and the Vercel deployment |
 
 ---
 
