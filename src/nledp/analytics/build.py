@@ -8,7 +8,7 @@ cannot be tested if it lives in a chart.
 """
 from __future__ import annotations
 
-ANALYTICS_SQL = """
+ANALYTICS_SQL_BASE = """
 DROP TABLE IF EXISTS analytics_agency_geography;
 CREATE TABLE analytics_agency_geography AS
 SELECT
@@ -97,8 +97,8 @@ WHERE ag.geo_id IS NOT NULL;
 
 -- Agency-year profile. Rates appear ONLY where numerator and denominator share a year, the
 -- geography link was accepted, and the agency type admits a resident denominator.
-DROP TABLE IF EXISTS analytics_agency_year;
-CREATE TABLE analytics_agency_year AS
+DROP TABLE IF EXISTS analytics_agency_year_base;
+CREATE TABLE analytics_agency_year_base AS
 WITH v AS (
     SELECT agency_id, data_year, offenses, clearances, months_reported, value_type
     FROM fact_crime WHERE offense_group='violent-crime'
@@ -146,7 +146,9 @@ LEFT JOIN fact_staffing s ON s.agency_id = ay.agency_id AND s.data_year = ay.dat
 LEFT JOIN v ON v.agency_id = ay.agency_id AND v.data_year = ay.data_year
 LEFT JOIN p ON p.agency_id = ay.agency_id AND p.data_year = ay.data_year
 LEFT JOIN fact_reporting r ON r.agency_id = ay.agency_id AND r.data_year = ay.data_year;
+"""
 
+ANALYTICS_SQL_DERIVED = """
 -- Peer cohorts. The definition is stored WITH the cohort so the product can always show it.
 DROP TABLE IF EXISTS analytics_peer_cohort;
 CREATE TABLE analytics_peer_cohort AS
@@ -181,7 +183,8 @@ SELECT
       coalesce(urbanicity_band, 'unknown') AS cohort_id,
     officers_per_1k, violent_crime_rate, property_crime_rate, population
 FROM analytics_agency_year
-WHERE rate_denominator_eligible AND geo_review_status = 'accepted';
+WHERE rate_denominator_eligible AND geo_review_status = 'accepted'
+  AND rate_allowed;
 
 DROP TABLE IF EXISTS analytics_peer_benchmarks;
 CREATE TABLE analytics_peer_benchmarks AS
@@ -241,7 +244,16 @@ GROUP BY 1, 2;
 
 
 def build_analytics(con) -> dict[str, int]:
-    con.execute(ANALYTICS_SQL)
+    """Build the analytics layer.
+
+    The order matters. The base SQL produces raw joined values; the policy pass decides what
+    may be published from them; the cohort and benchmark tables are then built from the
+    policy-approved view. A rate the policy withholds never reaches a peer median.
+    """
+    con.execute(ANALYTICS_SQL_BASE)
+    from .policy_pass import apply_policy
+    apply_policy(con)
+    con.execute(ANALYTICS_SQL_DERIVED)
     names = ["analytics_agency_geography", "analytics_agency_population",
              "analytics_agency_year", "analytics_peer_cohort",
              "analytics_peer_benchmarks", "analytics_state_year",

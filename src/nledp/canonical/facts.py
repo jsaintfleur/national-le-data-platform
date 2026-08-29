@@ -47,23 +47,28 @@ def build_fact_staffing(con) -> int:
     # repeats wherever a state uses a county-99 block for special agencies. Mapping an
     # ambiguous ORI7 to whichever agency happened to be read first would attribute one
     # department's officers to another, so ambiguous ORI7s are refused and logged instead.
-    ori7_counts: dict[str, list[tuple[str, str]]] = {}
-    for ori7, aid, src in con.execute(
-        "SELECT ori7, agency_id, ori7_source FROM dim_agency WHERE ori7 IS NOT NULL"
+    ori7_rows: dict[str, list[tuple[str, str, str]]] = {}
+    for ori7, aid, src, name in con.execute(
+        "SELECT ori7, agency_id, ori7_source, agency_name_normalized FROM dim_agency "
+        "WHERE ori7 IS NOT NULL"
     ).fetchall():
-        ori7_counts.setdefault(ori7, []).append((aid, src))
-    ori7_to_agency = {k: v[0][0] for k, v in ori7_counts.items() if len(v) == 1}
+        ori7_rows.setdefault(ori7, []).append((aid, src, name or ""))
+
+    ori7_to_agency = {k: v[0][0] for k, v in ori7_rows.items() if len(v) == 1}
     ori7_method = {
         k: ("ori7_from_legacy" if v[0][1] == "legacy_ori" else "ori7_fallback")
-        for k, v in ori7_counts.items() if len(v) == 1
+        for k, v in ori7_rows.items() if len(v) == 1
     }
-    ambiguous_ori7 = {k: v for k, v in ori7_counts.items() if len(v) > 1}
+    contested = {k: v for k, v in ori7_rows.items() if len(v) > 1}
+    ori7_candidates = contested          # kept for disambiguation at record level
+    ambiguous_ori7 = dict(contested)     # entries resolved below are removed
 
     rows: list[tuple] = []
     rejected_years: list[int] = []
     dup_keys: list[tuple[str, int]] = []
 
     pe_rows: dict[tuple, tuple] = {}
+    resolved_ori7: dict[str, str] = {}
     pe_dir = settings.raw / "fbi" / "pe"
     for zp in sorted(pe_dir.glob("pe-*.zip")):
         year = int(zp.stem.split("-")[1])
@@ -76,6 +81,10 @@ def build_fact_staffing(con) -> int:
             continue
         for r in recs:
             aid = ori7_to_agency.get(r["ori7"])
+            method = ori7_method.get(r["ori7"])
+            if aid is None:
+                aid, method = _disambiguate_ori7(
+                    r, ori7_candidates.get(r["ori7"]), resolved_ori7)
             if aid is None:
                 continue
             dy = r["data_year"] or year
@@ -88,7 +97,7 @@ def build_fact_staffing(con) -> int:
                     r["male_officers"], r["female_officers"],
                     r["male_civilians"], r["female_civilians"],
                     r["population"], "reported",
-                    ori7_method.get(r["ori7"], "ori7_fallback"), "fbi-ucr-pe-master")
+                    method or "ori7_fallback", "fbi-ucr-pe-master")
             prev = pe_rows.get(key)
             if prev is None:
                 pe_rows[key] = cand
@@ -129,6 +138,17 @@ def build_fact_staffing(con) -> int:
     valid = {r[0] for r in con.execute("SELECT agency_id FROM dim_agency").fetchall()}
     rows = [r for r in rows if r[0] in valid]
     n = bulk_insert(con, "fact_staffing", rows)
+    for o7 in resolved_ori7:
+        ambiguous_ori7.pop(o7, None)
+    if resolved_ori7:
+        con.executemany(
+            "INSERT INTO data_quality_log VALUES (?,?,?,?,?,?,?,?,?)",
+            [("ori7_disambiguated", "info", "fact_staffing", aid, None,
+              "This ORI7 is shared by more than one agency, and the employment record was "
+              "attributed to the one agency that is both the primary ORI (ending 00) and a "
+              "name match to the record. Sub-unit ORIs sharing the same ORI7 were not "
+              "candidates.", f"ORI7 {o7}", "one agency per ORI7", None)
+             for o7, aid in sorted(resolved_ori7.items())])
     if ambiguous_ori7:
         con.executemany(
             "INSERT INTO data_quality_log VALUES (?,?,?,?,?,?,?,?,?)",
@@ -377,3 +397,63 @@ def build_fact_crime(con) -> int:
                         "reported" if m == 12 else "partial_year", "fbi-ucr-summarized",
                     ]
     return bulk_insert(con, "fact_crime", [tuple(v) for v in rows.values()])
+
+
+# --- ORI7 disambiguation ------------------------------------------------------------------
+
+# A contested ORI7 resolves only when the primary candidate both clears an absolute name
+# threshold and beats every rival by this margin. Tuned so Boston (100 vs 0 against Suffolk
+# University) resolves and the CHP divisional blocks (all scoring alike) do not.
+PRIMARY_NAME_MIN = 85
+PRIMARY_NAME_MARGIN = 20
+
+def _disambiguate_ori7(record: dict, candidates: list[tuple[str, str, str]] | None,
+                       resolved: dict[str, str]) -> tuple[str | None, str | None]:
+    """Attribute a PE record whose ORI7 is shared by several agencies -- but only when two
+    independent signals agree.
+
+    Refusing every contested ORI7 outright cost real agencies: Boston Police Department
+    (MA01301, 2,129 sworn) shares its ORI7 with Suffolk University Police, and dropping it
+    left a major city department with no staffing series at all. Attributing to whichever
+    agency was read first would be worse.
+
+    The rule requires both:
+      1. exactly one candidate is the PRIMARY ORI for that ORI7 -- its ORI9 ends in "00",
+         which is how the FBI numbers a parent agency, while sub-units carry suffixes
+         such as 9E (university), 5A and 5Y (state special jurisdiction); and
+      2. that candidate's name matches the PE record's name AND wins by a clear margin over
+         every other candidate sharing the ORI7.
+
+    Both guards are load-bearing, and the California Highway Patrol shows why. CHP files its
+    entire statewide workforce -- 6,837 sworn in 2024 -- as a SINGLE PE record under ORI7
+    CA03499, which the FBI labels "HP: Sacramento County". That record resolves, because
+    CA0349900 is the primary ORI and no rival comes close on the name. The officers land
+    under a CHP ORI carrying the FBI's own sub-unit label, which is where the FBI filed them;
+    the alternative was excluding a state police force from the national total. ORI7 CA01999,
+    by contrast, is shared by fourteen CHP sub-units and NONE is a primary, so a record filed
+    against it stays refused and appears in the staffing reconciliation as a named excluded
+    bucket rather than inside one arbitrary sub-unit's profile.
+    """
+    if not candidates:
+        return None, None
+    from rapidfuzz import fuzz
+
+    from .agency import normalize_name
+
+    primaries = [c for c in candidates if c[0].endswith("00")]
+    if len(primaries) != 1:
+        return None, None
+    aid, _src, norm_name = primaries[0]
+    record_name = normalize_name(record.get("agency_name") or "")
+    if not record_name or not norm_name:
+        return None, None
+
+    score = fuzz.token_set_ratio(record_name, norm_name)
+    if score < PRIMARY_NAME_MIN:
+        return None, None
+    rivals = [fuzz.token_set_ratio(record_name, c[2])
+              for c in candidates if c[0] != aid and c[2]]
+    if rivals and score - max(rivals) < PRIMARY_NAME_MARGIN:
+        return None, None
+    resolved[record["ori7"]] = aid
+    return aid, "ori7_disambiguated_primary_and_name"

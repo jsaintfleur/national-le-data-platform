@@ -1,0 +1,452 @@
+{
+  "year": 2024,
+  "generated_at": "2026-08-29T17:47:55+00:00",
+  "source_file": {
+    "path": "/root/nledp/national-le-data-platform/data/raw/fbi/pe/pe-2024.zip",
+    "records": 26136,
+    "sworn": 772777,
+    "civilians": 362993
+  },
+  "fbi_published": {
+    "sworn": 772732,
+    "civilians": 362971,
+    "endpoint": "https://cde.ucr.cjis.gov/LATEST/pe?from=2024&to=2024"
+  },
+  "warehouse": {
+    "rows": 19343,
+    "sworn": 736598,
+    "civilians": 330624,
+    "duplicate_agency_years_collapsed": 56
+  },
+  "ledger": {
+    "loaded_unique": {
+      "records": 19497,
+      "sworn": 731720,
+      "civilians": 329216,
+      "largest": [
+        {
+          "ori7": "NY03030",
+          "name": "NEW YORK",
+          "sworn": 33307,
+          "total": 46804
+        },
+        {
+          "ori7": "ILCPD00",
+          "name": "CHICAGO",
+          "sworn": 11667,
+          "total": 12370
+        },
+        {
+          "ori7": "PRPPR00",
+          "name": "PUERTO RICO",
+          "sworn": 11453,
+          "total": 12204
+        },
+        {
+          "ori7": "CA01900",
+          "name": "LOS ANGELES",
+          "sworn": 8846,
+          "total": 14340
+        },
+        {
+          "ori7": "CA01942",
+          "name": "LOS ANGELES",
+          "sworn": 8820,
+          "total": 11435
+        },
+        {
+          "ori7": "TXHPD00",
+          "name": "HOUSTON",
+          "sworn": 5276,
+          "total": 6337
+        },
+        {
+          "ori7": "PAPEP00",
+          "name": "PHILADELPHIA",
+          "sworn": 5151,
+          "total": 5968
+        },
+        {
+          "ori7": "PAPSP00",
+          "name": "STATE POLICE",
+          "sworn": 4650,
+          "total": 6410
+        },
+        {
+          "ori7": "NJ02255",
+          "name": "DEPT OF CORRECTIONS",
+          "sworn": 4549,
+          "total": 6179
+        },
+        {
+          "ori7": "TX00000",
+          "name": "DEPT OF PUBLIC SAFETY",
+          "sworn": 4154,
+          "total": 10661
+        }
+      ]
+    },
+    "loaded_disambiguated": {
+      "records": 37,
+      "sworn": 4917,
+      "civilians": 1422,
+      "largest": [
+        {
+          "ori7": "MA01301",
+          "name": "BOSTON",
+          "sworn": 2129,
+          "total": 2664
+        },
+        {
+          "ori7": "AL04701",
+          "name": "HUNTSVILLE",
+          "sworn": 437,
+          "total": 553
+        },
+        {
+          "ori7": "ID00101",
+          "name": "BOISE",
+          "sworn": 330,
+          "total": 424
+        },
+        {
+          "ori7": "CO03004",
+          "name": "LAKEWOOD",
+          "sworn": 278,
+          "total": 412
+        },
+        {
+          "ori7": "NC09203",
+          "name": "CARY",
+          "sworn": 198,
+          "total": 267
+        },
+        {
+          "ori7": "TX16501",
+          "name": "MIDLAND",
+          "sworn": 168,
+          "total": 224
+        },
+        {
+          "ori7": "CO03001",
+          "name": "ARVADA",
+          "sworn": 163,
+          "total": 214
+        },
+        {
+          "ori7": "OK07201",
+          "name": "BROKEN ARROW",
+          "sworn": 162,
+          "total": 226
+        },
+        {
+          "ori7": "CA01001",
+          "name": "CLOVIS",
+          "sworn": 116,
+          "total": 183
+        },
+        {
+          "ori7": "AL05201",
+          "name": "DECATUR",
+          "sworn": 108,
+          "total": 121
+        }
+      ]
+    },
+    "ambiguous_ori7": {
+      "records": 200,
+      "sworn": 8036,
+      "civilians": 3894,
+      "largest": [
+        {
+          "ori7": "CA03499",
+          "name": "HP: SACRAMENTO COUNTY",
+          "sworn": 6837,
+          "total": 10273
+        },
+        {
+          "ori7": "IL04501",
+          "name": "AURORA",
+          "sworn": 324,
+          "total": 408
+        },
+        {
+          "ori7": "CA01001",
+          "name": "COALINGA STATE HOSPITAL",
+          "sworn": 225,
+          "total": 245
+        },
+        {
+          "ori7": "CO00701",
+          "name": "BOULDER",
+          "sworn": 176,
+          "total": 265
+        },
+        {
+          "ori7": "CA04001",
+          "name": "ATASCADERO STATE HOSPITA",
+          "sworn": 139,
+          "total": 152
+        },
+        {
+          "ori7": "SC00401",
+          "name": "ANDERSON",
+          "sworn": 96,
+          "total": 126
+        },
+        {
+          "ori7": "OK05502",
+          "name": "OKLAHOMA DEPARTMENT OF C",
+          "sworn": 57,
+          "total": 70
+        },
+        {
+          "ori7": "MA01301",
+          "name": "SUFFOLK UNIVERSITY",
+          "sworn": 23,
+          "total": 24
+        },
+        {
+          "ori7": "AR06301",
+          "name": "HOT SPRINGS VILLAGE",
+          "sworn": 22,
+          "total": 29
+        },
+        {
+          "ori7": "CO03001",
+          "name": "DIV GAMING CRIM ENF INVE",
+          "sworn": 22,
+          "total": 64
+        }
+      ]
+    },
+    "federal_agency": {
+      "records": 142,
+      "sworn": 21806,
+      "civilians": 27036,
+      "largest": [
+        {
+          "ori7": "DCFBIWA",
+          "name": "FEDERAL BUREAU OF INVEST",
+          "sworn": 14177,
+          "total": 37827
+        },
+        {
+          "ori7": "DCVA000",
+          "name": "UNITED STATES DEPARTMENT",
+          "sworn": 4944,
+          "total": 6198
+        },
+        {
+          "ori7": "DCUSA01",
+          "name": "UNITED STATES ARMY",
+          "sworn": 689,
+          "total": 1561
+        },
+        {
+          "ori7": "VACIA00",
+          "name": "CIA Security Protective",
+          "sworn": 460,
+          "total": 460
+        },
+        {
+          "ori7": "DC00131",
+          "name": "U.S. DEPARTMENT OF HEALT",
+          "sworn": 451,
+          "total": 577
+        },
+        {
+          "ori7": "DCTIX00",
+          "name": "United States Treasury I",
+          "sworn": 261,
+          "total": 356
+        },
+        {
+          "ori7": "DC00130",
+          "name": "United States Department",
+          "sworn": 138,
+          "total": 179
+        },
+        {
+          "ori7": "DCD0L03",
+          "name": "United States Department",
+          "sworn": 133,
+          "total": 311
+        },
+        {
+          "ori7": "DCDOJ12",
+          "name": "U.S. DEPT OF JUSTICE: OI",
+          "sworn": 132,
+          "total": 553
+        },
+        {
+          "ori7": "MDD0AHY",
+          "name": "UNITED STATES DEPARTMENT",
+          "sworn": 113,
+          "total": 421
+        }
+      ]
+    },
+    "unresolved_ori7": {
+      "records": 6260,
+      "sworn": 6298,
+      "civilians": 1425,
+      "largest": [
+        {
+          "ori7": "NY301SG",
+          "name": "SP: ALBANY COUNTY",
+          "sworn": 5148,
+          "total": 6205
+        },
+        {
+          "ori7": "NCDMV00",
+          "name": "DIVISION OF MOTOR VEHICL",
+          "sworn": 142,
+          "total": 199
+        },
+        {
+          "ori7": "MS02505",
+          "name": "BUREAU OF NARCOTICS, JAC",
+          "sworn": 113,
+          "total": 137
+        },
+        {
+          "ori7": "MTMFG00",
+          "name": "MT FISH, WILDLIFE & PARK",
+          "sworn": 111,
+          "total": 111
+        },
+        {
+          "ori7": "PAPSP34",
+          "name": "STATE POLICE, GREENSBURG",
+          "sworn": 108,
+          "total": 129
+        },
+        {
+          "ori7": "PAPSP91",
+          "name": "STATE POLICE, PITTSBURGH",
+          "sworn": 70,
+          "total": 87
+        },
+        {
+          "ori7": "VA00705",
+          "name": "U.S. FEDERAL DEPOSIT INS",
+          "sworn": 66,
+          "total": 72
+        },
+        {
+          "ori7": "DCGSA00",
+          "name": "US GENERAL SERVICES ADMI",
+          "sworn": 61,
+          "total": 77
+        },
+        {
+          "ori7": "PAPSP11",
+          "name": "STATE POLICE, FINDLAY ST",
+          "sworn": 53,
+          "total": 64
+        },
+        {
+          "ori7": "MI82880",
+          "name": "WAYNE STATE UNIVERSITY",
+          "sworn": 45,
+          "total": 61
+        }
+      ]
+    },
+    "loaded": {
+      "records": 19534,
+      "sworn": 736637,
+      "civilians": 330638,
+      "largest": []
+    }
+  },
+  "excluded_sworn_total": 36140,
+  "ambiguous_ori7_count": 77,
+  "by_agency_type": [
+    {
+      "agency_type": "municipal_police",
+      "agencies": 11643,
+      "sworn": 410681,
+      "civilians": 115013
+    },
+    {
+      "agency_type": "county_sheriff",
+      "agencies": 2978,
+      "sworn": 182618,
+      "civilians": 148691
+    },
+    {
+      "agency_type": "state_police",
+      "agencies": 892,
+      "sworn": 47124,
+      "civilians": 28835
+    },
+    {
+      "agency_type": "county_police",
+      "agencies": 45,
+      "sworn": 20693,
+      "civilians": 5894
+    },
+    {
+      "agency_type": "university_police",
+      "agencies": 1209,
+      "sworn": 20529,
+      "civilians": 12514
+    },
+    {
+      "agency_type": "special_jurisdiction",
+      "agencies": 392,
+      "sworn": 18391,
+      "civilians": 4420
+    },
+    {
+      "agency_type": "state_special_jurisdiction",
+      "agencies": 817,
+      "sworn": 14410,
+      "civilians": 9144
+    },
+    {
+      "agency_type": "park_or_conservation_police",
+      "agencies": 596,
+      "sworn": 8962,
+      "civilians": 1842
+    },
+    {
+      "agency_type": "port_or_airport_police",
+      "agencies": 97,
+      "sworn": 4404,
+      "civilians": 983
+    },
+    {
+      "agency_type": "marshal_or_constable",
+      "agencies": 345,
+      "sworn": 3533,
+      "civilians": 844
+    },
+    {
+      "agency_type": "tribal_police",
+      "agencies": 239,
+      "sworn": 3185,
+      "civilians": 1544
+    },
+    {
+      "agency_type": "transit_police",
+      "agencies": 90,
+      "sworn": 2068,
+      "civilians": 900
+    }
+  ],
+  "by_geography": [
+    {
+      "scope": "state_or_dc",
+      "agencies": 19339,
+      "sworn": 724868
+    },
+    {
+      "scope": "territory",
+      "agencies": 4,
+      "sworn": 11730
+    }
+  ]
+}
