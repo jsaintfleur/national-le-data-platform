@@ -48,6 +48,26 @@ app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"],
 )
 
+
+@app.exception_handler(Exception)
+async def unhandled(_request, exc: Exception) -> JSONResponse:
+    """Name the failure instead of returning an empty 500.
+
+    An opaque error page is the same problem as an unlabelled number: it tells the reader
+    that something is there without telling them what. The class and message are returned
+    always; the traceback only when NLEDP_DEBUG_ERRORS is set, so a stack trace is a
+    deliberate choice rather than a default.
+    """
+    import os
+    import traceback as _tb
+    body: dict[str, Any] = {
+        "error": type(exc).__name__,
+        "detail": str(exc),
+    }
+    if os.environ.get("NLEDP_DEBUG_ERRORS"):
+        body["traceback"] = _tb.format_exc()
+    return JSONResponse(body, status_code=500)
+
 CRIME_YEAR = VINTAGES["crime_last_complete_year"]
 
 
@@ -934,11 +954,26 @@ def health() -> dict:
     from pathlib import Path as _Path
 
     path = _Path(settings.db_path)
+    present = path.exists()
+    # Health is the endpoint you call when something is wrong, so it must survive the
+    # database being the thing that is wrong. A 500 here says only "down"; this says which
+    # of the two failure modes it is — no file, or a file that will not open.
+    release: object = None
+    error: str | None = None
+    if present:
+        try:
+            release = db.active_release()
+        except Exception as exc:  # noqa: BLE001 - reporting is the job
+            error = f"{type(exc).__name__}: {exc}"
+    else:
+        error = "the serving database is not present in this deployment"
     return {
-        "ok": True,
+        "ok": present and error is None,
         "database": path.name,
-        "database_bytes": path.stat().st_size if path.exists() else None,
-        "release": db.active_release(),
+        "database_present": present,
+        "database_bytes": path.stat().st_size if present else None,
+        "release": release,
+        "error": error,
         "served_tables": sorted(db.ALLOWED_TABLES),
     }
 

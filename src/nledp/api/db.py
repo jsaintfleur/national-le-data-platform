@@ -10,6 +10,7 @@ analytics layer plus the two registries.
 """
 from __future__ import annotations
 
+import os
 import threading
 from functools import lru_cache
 from typing import Any
@@ -36,11 +37,33 @@ _all_conns: list[duckdb.DuckDBPyConnection] = []
 _conn_lock = threading.Lock()
 
 
+def _serverless_config() -> dict[str, str]:
+    """DuckDB's defaults assume a machine, not a Lambda.
+
+    Left alone it sizes its buffer pool from total system memory, starts one thread per
+    detected core, and places both its temporary spill files and its extension directory on
+    paths that are read-only in this runtime. Each of those is a hard native failure rather
+    than a Python exception, which is why the first deployment returned
+    FUNCTION_INVOCATION_FAILED with an empty traceback.
+    """
+    if not os.environ.get("NLEDP_SERVERLESS"):
+        return {}
+    return {
+        "temp_directory": "/tmp/duckdb-temp",
+        "home_directory": "/tmp",
+        # The served queries are aggregate reads over a 47 MB file. The ceiling is here to
+        # keep DuckDB from sizing itself against the host rather than the container.
+        "memory_limit": "512MB",
+        "threads": "2",
+    }
+
+
 def conn() -> duckdb.DuckDBPyConnection:
     """One connection per thread. DuckDB connections are not thread-safe to share."""
     c = getattr(_local, "con", None)
     if c is None:
-        c = duckdb.connect(str(settings.db_path), read_only=True)
+        c = duckdb.connect(str(settings.db_path), read_only=True,
+                           config=_serverless_config())
         _local.con = c
         with _conn_lock:
             _all_conns.append(c)
