@@ -235,6 +235,32 @@ class TestFunctionBundle:
         assert setdefault_line < import_line, (
             "NLEDP_DB_PATH is set after nledp is imported; the setting will not take effect")
 
+    def test_app_is_bound_at_module_level(self):
+        """Vercel decides whether api/index.py is a Serverless Function by scanning for a
+        top-level ``app`` binding before any Python runs. Defining it only inside a ``try``
+        or an ``if`` is valid Python and invisible to that scan: the build fails with "the
+        pattern api/index.py doesn't match any Serverless Functions inside the api
+        directory" while the file sits in the repository, which is a genuinely confusing
+        thing to debug. This asserts the binding is at column zero.
+        """
+        tree = ast.parse(ENTRY.read_text())
+        bound = any(
+            isinstance(node, (ast.Assign, ast.AnnAssign, ast.FunctionDef, ast.AsyncFunctionDef,
+                              ast.ImportFrom))
+            and (
+                any(isinstance(t, ast.Name) and t.id == "app"
+                    for t in getattr(node, "targets", []))
+                or getattr(getattr(node, "target", None), "id", None) == "app"
+                or getattr(node, "name", None) == "app"
+                or any(a.asname == "app" or (a.asname is None and a.name == "app")
+                       for a in getattr(node, "names", []))
+            )
+            for node in tree.body  # tree.body only — module level, not nested
+        )
+        assert bound, (
+            "api/index.py must bind `app` at module level, or Vercel will not recognise it "
+            "as a Serverless Function and the build fails before Python ever runs")
+
     def test_the_entry_point_adds_no_routes_of_its_own(self):
         """The deployed API and the local one must be the same application. A route defined
         only in the serverless entry point exists in production and in no test."""
