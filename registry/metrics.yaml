@@ -1,0 +1,307 @@
+# Centralized metric registry. Nothing is displayed by the application that is not
+# defined here, and every definition carries its own comparison and ranking permissions.
+#
+# The two flags that matter most:
+#   comparison_allowed  - may this metric be shown side by side across agencies?
+#   ranking_allowed     - may this metric be sorted into a league table?
+# A metric can be perfectly accurate and still have ranking_allowed: false, because
+# ranking incomparable jurisdictions is the characteristic failure of this genre.
+
+registry_version: 1
+
+denominator_policy:
+  primary: pep_place_or_cousub          # annual point estimate, matches a named year
+  secondary: acs5_place_or_cousub       # period estimate; demographic composition only
+  reconciliation: fbi_agency_population  # agency self-reported; never the published denominator
+  divergence_flag_threshold: 0.10
+  rule: >
+    Publish the PEP-denominated rate. Store the ACS- and FBI-denominated rates alongside it.
+    Raise a data-quality flag whenever they diverge by more than ten percent, because that
+    divergence is the signal that the agency-to-geography mapping has broken.
+
+metrics:
+
+  - metric_id: agency_count
+    display_name: Law enforcement agencies
+    description: Count of distinct agencies in scope for the selected filters.
+    formula: count(distinct agency_id)
+    unit: count
+    source: fbi-cde-agency-directory
+    frequency: continuous
+    preferred_visualization: kpi
+    comparison_allowed: true
+    ranking_allowed: true
+    limitations:
+      - >
+        An ORI is a reporting identifier, not an agency. The FBI universe (about 19,600 ORIs)
+        exceeds the BJS agency census (17,541 agencies with at least one FTE sworn officer in
+        2018) partly for this reason. The platform reports both and labels which is which.
+
+  - metric_id: sworn_officers
+    display_name: Sworn officers
+    description: Full-time sworn officers with general arrest powers, as reported to the FBI.
+    formula: male_officers + female_officers
+    unit: persons
+    source: fbi-ucr-pe-master, fbi-nibrs-agencies
+    frequency: annual
+    preferred_visualization: kpi, timeseries
+    comparison_allowed: true
+    ranking_allowed: true
+    limitations:
+      - Reported as of 31 October of the data year, not an annual average.
+      - Bulk PE is zero-filled for 2025; 2025 values come from the API and agencies.csv.
+      - Agencies that do not report employment are missing, not zero.
+
+  - metric_id: civilian_personnel
+    display_name: Civilian personnel
+    description: Full-time non-sworn employees.
+    formula: male_civilians + female_civilians
+    unit: persons
+    source: fbi-ucr-pe-master, fbi-nibrs-agencies
+    frequency: annual
+    preferred_visualization: kpi, timeseries
+    comparison_allowed: true
+    ranking_allowed: true
+
+  - metric_id: total_personnel
+    display_name: Total personnel
+    formula: sworn_officers + civilian_personnel
+    unit: persons
+    source: fbi-ucr-pe-master
+    frequency: annual
+    comparison_allowed: true
+    ranking_allowed: true
+
+  - metric_id: civilian_share
+    display_name: Civilian share of personnel
+    formula: civilian_personnel / total_personnel
+    numerator: civilian_personnel
+    denominator: total_personnel
+    unit: ratio
+    source: fbi-ucr-pe-master
+    frequency: annual
+    preferred_visualization: distribution
+    comparison_allowed: true
+    ranking_allowed: false
+    limitations:
+      - >
+        Varies with what a jurisdiction outsources (dispatch, records, crime lab) far more
+        than with any policy choice. Comparable within a peer cohort, not across the country.
+
+  - metric_id: officers_per_1k
+    display_name: Officers per 1,000 residents
+    formula: sworn_officers / population_served * 1000
+    numerator: sworn_officers
+    denominator: population_served
+    unit: per_1000
+    source: fbi-ucr-pe-master + census-pep-2025
+    frequency: annual
+    preferred_visualization: choropleth, scatter, distribution
+    comparison_allowed: true
+    ranking_allowed: false
+    limitations:
+      - >
+        The denominator is resident population. It is wrong by construction for university,
+        transit, park and airport police, whose served population is transient and nested
+        inside another agency's jurisdiction. Those agency types are excluded from this
+        metric and reported as counts only.
+      - >
+        For county sheriffs the correct denominator is the unincorporated balance, not the
+        whole county. The platform computes the balance and flags the many cases where a
+        sheriff also polices incorporated places under contract.
+      - The platform publishes no view on what an appropriate staffing level is.
+
+  - metric_id: population_per_officer
+    display_name: Residents per officer
+    formula: population_served / sworn_officers
+    unit: persons
+    source: fbi-ucr-pe-master + census-pep-2025
+    frequency: annual
+    comparison_allowed: true
+    ranking_allowed: false
+
+  - metric_id: violent_crime_count
+    display_name: Violent crime offenses
+    description: Murder and nonnegligent manslaughter, rape, robbery, aggravated assault.
+    formula: sum(offenses) where offense_group = 'violent'
+    unit: count
+    source: fbi-ucr-summarized
+    frequency: monthly, annual
+    preferred_visualization: timeseries, kpi
+    comparison_allowed: true
+    ranking_allowed: false
+    limitations:
+      - >
+        Counts reflect what agencies reported, not what occurred. A change can be a change
+        in reporting, in participation, or in classification.
+      - >
+        Not comparable across the 2020/2021 boundary without a participation adjustment;
+        roughly 31 percent of agencies had not onboarded to NIBRS in 2021.
+      - 2026 is fractional. The platform's hard cutoff for levels and changes is 2025-12.
+
+  - metric_id: violent_crime_rate
+    display_name: Violent crime rate
+    formula: violent_crime_count / population * 100000
+    numerator: violent_crime_count
+    denominator: population
+    unit: per_100k
+    source: fbi-ucr-summarized + census-pep-2025
+    frequency: annual
+    preferred_visualization: choropleth, timeseries, scatter
+    comparison_allowed: true
+    ranking_allowed: false
+    limitations:
+      - >
+        Ranking jurisdictions by crime rate is the specific practice the FBI's own
+        "Caution Against Ranking" warns against, and the platform does not offer it. Peer
+        cohorts and percentiles are offered instead, with the cohort definition exposed.
+      - Numerator and denominator must share an observation year; the build refuses otherwise.
+
+  - metric_id: property_crime_count
+    display_name: Property crime offenses
+    description: Burglary, larceny-theft, motor vehicle theft. Arson is reported separately.
+    unit: count
+    source: fbi-ucr-summarized
+    frequency: monthly, annual
+    comparison_allowed: true
+    ranking_allowed: false
+
+  - metric_id: property_crime_rate
+    display_name: Property crime rate
+    formula: property_crime_count / population * 100000
+    numerator: property_crime_count
+    denominator: population
+    unit: per_100k
+    source: fbi-ucr-summarized + census-pep-2025
+    frequency: annual
+    comparison_allowed: true
+    ranking_allowed: false
+
+  - metric_id: indexed_change
+    display_name: Indexed change
+    description: >
+      A series rebased so the first year in the window equals 100. This is how the platform
+      compares trends between agencies of very different size without implying their levels
+      are comparable.
+    formula: value_year / value_base_year * 100
+    unit: index
+    source: derived
+    frequency: annual
+    preferred_visualization: timeseries
+    comparison_allowed: true
+    ranking_allowed: false
+
+  - metric_id: reporting_completeness
+    display_name: Reporting completeness
+    description: >
+      Share of months in the data year for which an agency submitted, from the twelve
+      monthly reported flags in the PE and RETA master files.
+    formula: months_reported / 12
+    unit: ratio
+    source: fbi-ucr-pe-master, fbi-nibrs-agencies
+    frequency: annual
+    preferred_visualization: heatmap
+    comparison_allowed: true
+    ranking_allowed: false
+
+  - metric_id: population_coverage
+    display_name: Population covered by reporting agencies
+    formula: sum(population where agency reported) / sum(population all agencies)
+    unit: ratio
+    source: derived
+    frequency: annual
+    preferred_visualization: kpi, choropleth
+    comparison_allowed: true
+    ranking_allowed: false
+
+  - metric_id: gov_police_current_operations
+    display_name: Police protection - current operations (government unit)
+    description: >
+      What a GOVERNMENT spent on police protection in its own fiscal year. Census item code
+      E62, in thousands of dollars.
+    formula: sum(amount) where item_code = 'E62'
+    unit: usd_thousands
+    source: census-gov-finance-2024
+    frequency: annual
+    preferred_visualization: kpi, timeseries
+    comparison_allowed: false
+    ranking_allowed: false
+    attribution_level: government_unit
+    limitations:
+      - >
+        This is what a government spent, not what a police department's budget was. It may
+        cover more than one law enforcement agency, or none.
+      - >
+        26.5 percent of 2024 values are imputed rather than reported. The imputation flag
+        travels with the value to the interface and is never dropped in aggregation.
+      - >
+        A county figure covers the sheriff's office and any county police department
+        together, and excludes jail operations and court/civil functions, which the Census
+        classifies under other codes.
+      - >
+        Employer pension contributions are excluded for a government running its own pension
+        fund and included for one in a state system. Nothing in the source flags which.
+      - >
+        A city that buys policing under contract reports the payment as direct E62 while the
+        same policing also sits in the provider's total. Never sum a county with its cities.
+
+  - metric_id: gov_police_construction
+    display_name: Police facility construction (government unit)
+    description: Census item code F62. Construction only.
+    unit: usd_thousands
+    source: census-gov-finance-2024
+    comparison_allowed: false
+    ranking_allowed: false
+    limitations:
+      - >
+        This is not capital outlay. G62 (land and existing structures) and K62 (equipment)
+        have zero records in the public-use file, and K62 is not collected for most local
+        governments. Labelling F62 "capital outlay" would overstate what the source measures.
+
+  - metric_id: police_share_of_direct_general_expenditure
+    display_name: Police share of the government's direct general expenditure
+    formula: E62 / total_direct_general_expenditure
+    numerator: gov_police_current_operations
+    denominator: total_direct_general_expenditure
+    unit: ratio
+    source: census-gov-finance-2024
+    frequency: annual
+    preferred_visualization: distribution, scatter
+    comparison_allowed: true
+    ranking_allowed: false
+    limitations:
+      - >
+        The most defensible comparative spending metric available, because numerator and
+        denominator come from the same unit, the same fiscal year and the same classification,
+        so most fiscal-calendar and scope drift cancels. It is still a ratio of what a
+        government spends, not of what a department costs.
+
+# Metrics deliberately NOT built, with the reason. This list is part of the product.
+prohibited_metrics:
+  - metric_id: spending_per_agency
+    reason: >
+      No agency dimension exists in any federal expenditure source, and no Census-to-ORI
+      crosswalk exists anywhere. Any per-agency spending number would be an estimate the
+      platform invented.
+  - metric_id: cost_per_sworn_officer
+    reason: >
+      Combines a Census numerator with an FBI or BJS denominator drawn from a different
+      universe on a different time basis with no crosswalk between them. Worst for sheriffs,
+      whose E62 excludes the jail and civil functions their headcount includes.
+  - metric_id: per_capita_spending_ranking
+    reason: >
+      Ranks pension administration structure, contract-policing arrangements, consolidation
+      status and fiscal calendar at least as much as spending. Louisville-Jefferson County at
+      $130 per capita against Nashville-Davidson at $486 - two consolidated metro governments
+      of near-identical size - is the demonstration.
+  - metric_id: regional_spending_total
+    reason: Summing a county and its cities double-counts contract policing.
+  - metric_id: spending_vs_crime_correlation
+    reason: >
+      Contaminated by sample discontinuity, 26.5 percent imputation, and a fiscal window that
+      spans about 24 months and differs by unit.
+  - metric_id: clearance_rate
+    reason: >
+      Deferred, not rejected. Clearance is defined inconsistently across agencies and years
+      and is heavily affected by the SRS-to-NIBRS transition. It needs its own methodology
+      note before it can be shown. Phase 4.

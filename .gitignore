@@ -1,0 +1,13 @@
+.env
+.env.local
+*.pyc
+__pycache__/
+.venv/
+data/raw/**
+data/staging/**
+data/warehouse/*.duckdb
+data/warehouse/*.duckdb.wal
+!data/**/.gitkeep
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

@@ -1,0 +1,515 @@
+{
+  "built_at": "2026-08-29T16:50:03+00:00",
+  "git_commit": "uncommitted",
+  "notes": "Phase 1 data foundation, first full national build",
+  "release_id": "release_2026_08_29_001",
+  "row_counts": {
+    "agency_crosswalk": 58329,
+    "agency_history": 138,
+    "analytics_agency_geography": 19902,
+    "analytics_agency_population": 117588,
+    "analytics_agency_year": 188853,
+    "analytics_peer_benchmarks": 326,
+    "analytics_peer_cohort": 144588,
+    "analytics_reporting_coverage": 548,
+    "analytics_state_year": 548,
+    "data_quality_log": 35175,
+    "dim_agency": 19902,
+    "dim_geography": 72055,
+    "dim_metric": 17,
+    "dim_source": 13,
+    "dim_time": 42,
+    "fact_crime": 320190,
+    "fact_demographics": 297412,
+    "fact_finance": 125816,
+    "fact_reporting": 15129,
+    "fact_staffing": 183391,
+    "release_manifest": 0
+  },
+  "source_versions": {
+    "bjs-csllea-2018": {
+      "artifacts": 1,
+      "bytes": 41371,
+      "sha256": [
+        {
+          "artifact": "csllea18_tables.zip",
+          "sha256": "9d62f0c0d6f452d4d5856ae113f7761660ccd2f7084cb490c3252be9e3c95a3f"
+        }
+      ]
+    },
+    "census-acs5-2024": {
+      "artifacts": 2,
+      "bytes": 4103937,
+      "sha256": [
+        {
+          "artifact": "acs5_2024_places.json",
+          "sha256": "5105da0c5af57019dae94bd12dbb8381b6cf6461411a3b900d962bf5d375242f"
+        },
+        {
+          "artifact": "acs5_2024_counties.json",
+          "sha256": "44262eb07224cb24e30ead6c041441c39c94438a7148c7844520950baeb88bff"
+        }
+      ]
+    },
+    "census-gazetteer-2025": {
+      "artifacts": 6,
+      "bytes": 8188354,
+      "sha256": [
+        {
+          "artifact": "2025_Gaz_place_national.zip",
+          "sha256": "49644173a453469d9bd77fb7a493b027f87567e209edaf2078aac7543ac2ee29"
+        },
+        {
+          "artifact": "2025_Gaz_counties_national.zip",
+          "sha256": "4c90d0f805779923b5958ab13d0c1e9b99fe4932b786bfcf75dd739bb2dcb4ea"
+        },
+        {
+          "artifact": "2025_Gaz_cousubs_national.zip",
+          "sha256": "5e498edbf27e2426ec6661415851ea42c6a635f3cc3a2b79eccc2c3c19b2892e"
+        },
+        {
+          "artifact": "2025_Gaz_ua_national.zip",
+          "sha256": "ffd683e7bd630847a73dd9bf7d525afee1b37c018fb126c8252538a599c4b955"
+        },
+        {
+          "artifact": "national_place_by_county2020.txt",
+          "sha256": "9996494d33cf6ee4527491508aa1b8dae85dcff3a979886e19b0b375e5d06ec6"
+        },
+        {
+          "artifact": "national_place2020.txt",
+          "sha256": "302ff3cf031217aca032d89f42c0dd93611a76d72ab2036944fa40d5c23c6613"
+        }
+      ]
+    },
+    "census-gov-finance-2024": {
+      "artifacts": 3,
+      "bytes": 18236040,
+      "sha256": [
+        {
+          "artifact": "2024_Individual_Unit_File.zip",
+          "sha256": "0967c4d30466593796acb26f2b30c1afb37b5b9a5de43766dc65e4ccc95bd89a"
+        },
+        {
+          "artifact": "2023_Individual_Unit_File.zip",
+          "sha256": "42e0cc63e42d577d5777e509cc5f7bfa7fbae164770984009ca9a0df53373918"
+        },
+        {
+          "artifact": "2022_Individual_Unit_File.zip",
+          "sha256": "c8de889f6b3320d3be347e3880607346d6440eda82705b26db2fa410fe6e83a5"
+        }
+      ]
+    },
+    "census-gus-2025": {
+      "artifacts": 1,
+      "bytes": 10837128,
+      "sha256": [
+        {
+          "artifact": "gov_units_2025.zip",
+          "sha256": "e8b17c3928fb95fa7355a1ce7795fc7de8874c64e9ac7cd9506d6a6515d953f8"
+        }
+      ]
+    },
+    "census-pep-2025": {
+      "artifacts": 3,
+      "bytes": 9589846,
+      "sha256": [
+        {
+          "artifact": "sub-est2025.csv",
+          "sha256": "e3508f5201465913476d4ddf91740f191f7977c9f2614a2a7e30b5fd22027934"
+        },
+        {
+          "artifact": "co-est2025-alldata.csv",
+          "sha256": "4f5a499d851e2cb48fd7a5405e5a9235453a8a66933657aacd10df0e264f35d5"
+        },
+        {
+          "artifact": "NST-EST2025-ALLDATA.csv",
+          "sha256": "92188e29cb0a67dcf95afa7d6c47359409782f086478b70ea4128eb70e223ca9"
+        }
+      ]
+    },
+    "census-urban-areas-2020": {
+      "artifacts": 3,
+      "bytes": 5698973,
+      "sha256": [
+        {
+          "artifact": "2020_Census_ua_list_all.xlsx",
+          "sha256": "4e87debc2999b8f6ae303be7de40988fbf80ebaffeccdcbb3d26df8b1fa4b97b"
+        },
+        {
+          "artifact": "tab20_ua20_place20_natl.txt",
+          "sha256": "f4545604f67c71f58bd3e6d79bead37303dd365eb8903e547037e94d517b70cb"
+        },
+        {
+          "artifact": "tab20_ua20_county20_natl.txt",
+          "sha256": "0a3078d1784b3a2f7df753d0dd2ae5a8fe8d0c0350c205547c975d07cedb2e10"
+        }
+      ]
+    },
+    "fbi-cde-agency-directory": {
+      "artifacts": 1,
+      "bytes": 6314545,
+      "sha256": [
+        {
+          "artifact": "agency_directory.json",
+          "sha256": "8ade9c5faf69815c09bb7db769e6424618509522948b873ece80e1f3332648f8"
+        }
+      ]
+    },
+    "fbi-nibrs-agencies": {
+      "artifacts": 51,
+      "bytes": 6565333,
+      "sha256": [
+        {
+          "artifact": "agencies_AL_2025.csv",
+          "sha256": "29234ef6d5446d847a62b3c09a3db74f45fdab9b97274ebe801806a1457d6cfc"
+        },
+        {
+          "artifact": "agencies_AK_2025.csv",
+          "sha256": "cdfc78a3458dd7775957cd5ba1c56e5278ae0a825ef29f871de84ae214c93374"
+        },
+        {
+          "artifact": "agencies_AZ_2025.csv",
+          "sha256": "9561b2af079ff9be99c58301e55cd9626c9fa0ac7b79d9c7446ee318e9320ae0"
+        },
+        {
+          "artifact": "agencies_AR_2025.csv",
+          "sha256": "4885275df36c8b8c5e973748a70ec7e5cd9f81a9034c1884dd25181570b70df6"
+        },
+        {
+          "artifact": "agencies_CA_2025.csv",
+          "sha256": "df8f7431f43f2ffaa5d37e69a18f54ce8b11cd00367e22574a36192803ae4289"
+        },
+        {
+          "artifact": "agencies_CO_2025.csv",
+          "sha256": "a1ee922b067ae99b1d1477bf1f99b3f1cf343eab07bb8c777acf18ef119adee3"
+        },
+        {
+          "artifact": "agencies_CT_2025.csv",
+          "sha256": "d261c3af193bcd0cd8579a3c4b9014c5eeda00b19e3ed8a38327677ac6b0d623"
+        },
+        {
+          "artifact": "agencies_DE_2025.csv",
+          "sha256": "afc7a3f8ec09bb3c5d20916cda795e5a7ec3daa05d3a51a57ab4a975401f0d84"
+        },
+        {
+          "artifact": "agencies_DC_2025.csv",
+          "sha256": "d306a4a0c4995a1c8f6c0fa9982f5760d6e63ce2472b5c6db84c186b38591310"
+        },
+        {
+          "artifact": "agencies_FL_2025.csv",
+          "sha256": "20c8744d3f34db73cca7568579da5ff719013ded2b8ab9c0a518f4a072a5ef6e"
+        },
+        {
+          "artifact": "agencies_GA_2025.csv",
+          "sha256": "a78d5cab4969e3052fd582b3620607853bd24add0b9f8ed1d2baf1a7ab31c881"
+        },
+        {
+          "artifact": "agencies_HI_2025.csv",
+          "sha256": "80f9dc3745cdd5bddadd9c8d325befe4968b710b4ace3b938d88dfc624b58727"
+        },
+        {
+          "artifact": "agencies_ID_2025.csv",
+          "sha256": "97626560f61d51e91a06fc634d29a929e7f8bf44590143302caae5963c0b1c47"
+        },
+        {
+          "artifact": "agencies_IL_2025.csv",
+          "sha256": "742a27e48e632ff8bc5f477cd9a9e1457f9adf7c492361638b364aabadd52787"
+        },
+        {
+          "artifact": "agencies_IN_2025.csv",
+          "sha256": "8ba9b18712756eb6972759e04561ebb727697444685fd2ecf07da1aeb87d92ac"
+        },
+        {
+          "artifact": "agencies_IA_2025.csv",
+          "sha256": "da3b7530acf625f11b4d43b41cf0abb00631636692528926ecf020a6c979c27a"
+        },
+        {
+          "artifact": "agencies_KS_2025.csv",
+          "sha256": "8298760879ed3da1bf2ddea08ea118dec8a89bbd02cdbfe13ffcfc6890d5973e"
+        },
+        {
+          "artifact": "agencies_KY_2025.csv",
+          "sha256": "b7b97054e836e9833af855f7822981c8f2099dfb06e0088af619920a1ad88de7"
+        },
+        {
+          "artifact": "agencies_LA_2025.csv",
+          "sha256": "387eaf53eb739d2e910decbddcf3baab6f7f4644f30de7ecc9e08010071463e8"
+        },
+        {
+          "artifact": "agencies_ME_2025.csv",
+          "sha256": "173a8620a38ed6a6a5ba0eff865dec1f070757494a17e264a0f01745d7b90ea3"
+        },
+        {
+          "artifact": "agencies_MD_2025.csv",
+          "sha256": "9baf872f5bd2ac0e3235db6da9aba2d8b1b21db5f38f166748729035971f2c08"
+        },
+        {
+          "artifact": "agencies_MA_2025.csv",
+          "sha256": "77aaad0cbb32f3ec39267e1a20af92ff07c3cf052a86c3d3f44399f4e8f5c856"
+        },
+        {
+          "artifact": "agencies_MI_2025.csv",
+          "sha256": "e7d2096d79d6f35acd655aec9e55b8eb4fc4af99b3fea757416cd6c9cbfbc0ce"
+        },
+        {
+          "artifact": "agencies_MN_2025.csv",
+          "sha256": "0e31a6ae486bce593ab6ce92388185392db8403d1b966c8307e2a305d944074f"
+        },
+        {
+          "artifact": "agencies_MS_2025.csv",
+          "sha256": "ee05321c17a8e491b9b2430f396011f8d42797638c580ed5c7772b23bf616659"
+        },
+        {
+          "artifact": "agencies_MO_2025.csv",
+          "sha256": "febad940e8bf56a2c8161cd5290459ff0ea06f38b9c08c028296924e790cbecf"
+        },
+        {
+          "artifact": "agencies_MT_2025.csv",
+          "sha256": "2a16323cc5108be64ab9f2d9fb79b2bda694fb82bebecab9c597c595ca2fec07"
+        },
+        {
+          "artifact": "agencies_NE_2025.csv",
+          "sha256": "6e27b84b282153d7e29fd0c8d763bf031d8b58dceee8f0cbca795a497a667c36"
+        },
+        {
+          "artifact": "agencies_NV_2025.csv",
+          "sha256": "60dc31e2ab91880e4a43e0cc39bfaf015639072cc8b0703d1a5ba287e3a4aa62"
+        },
+        {
+          "artifact": "agencies_NH_2025.csv",
+          "sha256": "38682e4e5c714e743ab565876957959d0c2013a818fda0fcbcccfa338493f985"
+        },
+        {
+          "artifact": "agencies_NJ_2025.csv",
+          "sha256": "8cd615285cf48f43308914854837971a9232238db1de5dd44d1207d78ce7a63a"
+        },
+        {
+          "artifact": "agencies_NM_2025.csv",
+          "sha256": "4ec50880a488283be383b622b7e70994e5be909c4d4d6184072348ff96676e65"
+        },
+        {
+          "artifact": "agencies_NY_2025.csv",
+          "sha256": "62a8be4353cfa377b0064d80af5dba65fe2cc76636d31ddec40368026f483bbe"
+        },
+        {
+          "artifact": "agencies_NC_2025.csv",
+          "sha256": "e0d0354a255e4c39e956937a68e50930f171171668a51032f920dc891609e407"
+        },
+        {
+          "artifact": "agencies_ND_2025.csv",
+          "sha256": "ced6433ba6c22e9572280f2cd136053741796ac6d1329d1bc30b533b5ab0b1c0"
+        },
+        {
+          "artifact": "agencies_OH_2025.csv",
+          "sha256": "6fed62ecc589ac007e7c35c4d22bc11a8ba4b8d3cb9fa8c7acbad45b1bae8465"
+        },
+        {
+          "artifact": "agencies_OK_2025.csv",
+          "sha256": "91066cc9642e1424afad4c8af7fa69cd7ac314f15ed09d44774a58d8b1467143"
+        },
+        {
+          "artifact": "agencies_OR_2025.csv",
+          "sha256": "87a84d4d4b324c304f2788b7ac81fdac4832c1688a638f2615efdee136681510"
+        },
+        {
+          "artifact": "agencies_PA_2025.csv",
+          "sha256": "e4f7e6b58a971f958ac212a7a0e7b02d678ded5decee6cde1920b64551fd8caf"
+        },
+        {
+          "artifact": "agencies_RI_2025.csv",
+          "sha256": "21cbf6fbd08815c55c1a4ec004cf860fef7c97bcf8bde17b96a3e61a247185d7"
+        },
+        {
+          "artifact": "agencies_SC_2025.csv",
+          "sha256": "1a85cc25d3f0e269af6e1fa04b024eab3831b1bb550a6fb9394a799f2a637995"
+        },
+        {
+          "artifact": "agencies_SD_2025.csv",
+          "sha256": "e00c24bc5d5c0a320fb0ff6558549ba25c44c54db25a1ca9612741a80c829e0c"
+        },
+        {
+          "artifact": "agencies_TN_2025.csv",
+          "sha256": "81d7efec0e1399af0c08ca19aceb8c78ba394c50a3d3de71f2fdfea22be053da"
+        },
+        {
+          "artifact": "agencies_TX_2025.csv",
+          "sha256": "c2bd1f0557b95ab60a25fb93e1944aa6312a2607b05b30eb66427c2d9a9613c0"
+        },
+        {
+          "artifact": "agencies_UT_2025.csv",
+          "sha256": "7b41740e27fb321a5ee7d0acbc794204bed5db0a9d7992f3addf26471bba58fa"
+        },
+        {
+          "artifact": "agencies_VT_2025.csv",
+          "sha256": "f798958115c3516c20a19d5e644887d5d616758eb3971d9ad00347bb88e6db90"
+        },
+        {
+          "artifact": "agencies_VA_2025.csv",
+          "sha256": "1c45f13ed2bb69deec92c7959e547d7a89790625eb3a5a1a5a171560bfeaed40"
+        },
+        {
+          "artifact": "agencies_WA_2025.csv",
+          "sha256": "02a1130382360a696bf54412c71e0172f7c76b06dedba454ceb2622c66032efd"
+        },
+        {
+          "artifact": "agencies_WV_2025.csv",
+          "sha256": "f041df6e93f0085bfc0374d470c5d30209c6a5d4622012896783eddd0d058330"
+        },
+        {
+          "artifact": "agencies_WI_2025.csv",
+          "sha256": "7cc87988ea1b63afb78caf5a7880d970a480a23cf2fc91a68a17573be31325b3"
+        },
+        {
+          "artifact": "agencies_WY_2025.csv",
+          "sha256": "b44dd2622ac3f65fe09143ac851cd7b2daa8f15f82811edd48086401299268ad"
+        }
+      ]
+    },
+    "fbi-ucr-pe-master": {
+      "artifacts": 9,
+      "bytes": 21249448,
+      "sha256": [
+        {
+          "artifact": "pe-2016.zip",
+          "sha256": "f8d2b96ab2b284126353b5d64efe9af8de780a3b2bb84eb62163c11130549f60"
+        },
+        {
+          "artifact": "pe-2017.zip",
+          "sha256": "ea0b985c9290b35a7a9a5d2abf3ddfe84453bdbda1523b43a165d3e0aa5501b6"
+        },
+        {
+          "artifact": "pe-2018.zip",
+          "sha256": "1606a07df9fae0e70172bac1aee1293864bd2fbd8837f1d575521e960ad89333"
+        },
+        {
+          "artifact": "pe-2019.zip",
+          "sha256": "257e4e9e3915fbb25159561453527e1daa99fcadd7ea92e52069ce9634228e97"
+        },
+        {
+          "artifact": "pe-2020.zip",
+          "sha256": "7c2c11c61504fa2489cd0ade903ff27b9a59eee124655cb5f7699877e7f22d91"
+        },
+        {
+          "artifact": "pe-2021.zip",
+          "sha256": "32c4f040fc8ab6cc63aaf91aab9cea24ddcaaa5348a5f35d1d407a0021c99541"
+        },
+        {
+          "artifact": "pe-2022.zip",
+          "sha256": "9aa926f5306a9ba519483badff0917b6ce99899d65815484c8f84130dd3b520c"
+        },
+        {
+          "artifact": "pe-2023.zip",
+          "sha256": "dad4cfa388da3622ad49efe9c9eb52c0ec9780ae9d4a3b150bb90640a5387a7e"
+        },
+        {
+          "artifact": "pe-2024.zip",
+          "sha256": "f3bd353f66d47e4c39b641fa9d1ffd7001b45baa7327dc823f6568a3ec9ffcf8"
+        }
+      ]
+    }
+  },
+  "validation": {
+    "agency_id_not_unique": {
+      "count": 0,
+      "message": "agency_id appears more than once in dim_agency.",
+      "severity": "error",
+      "table": "dim_agency"
+    },
+    "clearances_exceed_offenses": {
+      "count": 1074,
+      "message": "Clearances substantially exceed offenses. Clearances can legitimately exceed offenses in a year when older cases close, but a ratio above 1.5 is worth review.",
+      "severity": "warning",
+      "table": "fact_crime"
+    },
+    "connecticut_legacy_county": {
+      "count": 0,
+      "message": "An abolished Connecticut county is present. Connecticut uses nine Planning Regions (09110-09190) in the current geography vintage.",
+      "severity": "error",
+      "table": "dim_geography"
+    },
+    "crime_10x_jump": {
+      "count": 41,
+      "message": "Offenses rose tenfold or more year over year on twelve months of reporting in both years.",
+      "severity": "warning",
+      "table": "fact_crime"
+    },
+    "crime_year_beyond_cutoff": {
+      "count": 0,
+      "message": "Crime observation beyond the platform's completeness cutoff. 2026 submission is fractional and its levels are not computable.",
+      "severity": "error",
+      "table": "fact_crime"
+    },
+    "denominator_year_mismatch": {
+      "count": 1647,
+      "message": "No population observation in the same year as the crime observation, so no rate can be published for this agency-year.",
+      "severity": "error",
+      "table": "fact_crime"
+    },
+    "finance_fiscal_year_misaligned": {
+      "count": 18563,
+      "message": "The government's fiscal year does not end on 31 December, so this figure does not line up with calendar-year crime statistics.",
+      "severity": "info",
+      "table": "fact_finance"
+    },
+    "finance_imputed_value": {
+      "count": 7628,
+      "message": "Police spending value was imputed or taken from an alternative source rather than reported by the government.",
+      "severity": "info",
+      "table": "fact_finance"
+    },
+    "geoid_wrong_width": {
+      "count": 0,
+      "message": "GEOID width does not match its summary level; a leading zero was probably lost.",
+      "severity": "error",
+      "table": "dim_geography"
+    },
+    "implausible_violent_rate": {
+      "count": 0,
+      "message": "Violent crime rate above 10,000 per 100,000 residents. Usually a jurisdiction mismatch rather than a real rate.",
+      "severity": "warning",
+      "table": "fact_crime"
+    },
+    "invalid_state_fips": {
+      "count": 0,
+      "message": "state_fips is not a two-digit string.",
+      "severity": "error",
+      "table": "dim_agency"
+    },
+    "negative_crime_count": {
+      "count": 7,
+      "message": "Negative offense count.",
+      "severity": "error",
+      "table": "fact_crime"
+    },
+    "negative_population": {
+      "count": 0,
+      "message": "Negative population.",
+      "severity": "error",
+      "table": "fact_demographics"
+    },
+    "staffing_dropped_to_zero": {
+      "count": 2757,
+      "message": "Sworn officers fell from more than 20 to zero in one year. Almost always a reporting gap, not a disbanded department.",
+      "severity": "warning",
+      "table": "fact_staffing"
+    },
+    "staffing_year_out_of_range": {
+      "count": 0,
+      "message": "Staffing observation year is outside the plausible range.",
+      "severity": "error",
+      "table": "fact_staffing"
+    },
+    "staffing_zero_sworn_with_civilians": {
+      "count": 148,
+      "message": "Zero sworn officers alongside civilian staff. Often a reporting artifact rather than a department without officers.",
+      "severity": "warning",
+      "table": "fact_staffing"
+    },
+    "unresolved_agency_geography": {
+      "count": 3077,
+      "message": "Agency-to-geography link is unresolved or needs human review. The agency is still shown; no per-resident rate is computed for it.",
+      "severity": "info",
+      "table": "agency_crosswalk"
+    }
+  }
+}

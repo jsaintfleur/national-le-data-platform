@@ -1,0 +1,444 @@
+# Machine-readable source registry.
+# Every field here was verified by live HTTP request during the Phase 0 source audit
+# (2026-08-29). `verified_http_status` is an observed status code, not an assumption.
+# This file is loaded into dim_source and rendered on the platform's methodology page.
+
+registry_version: 1
+audited_on: 2026-08-29
+
+sources:
+
+  - source_id: fbi-cde-api
+    source_name: FBI Crime Data Explorer Data API
+    publisher: FBI CJIS Division, Uniform Crime Reporting Program
+    dataset_name: CDE Data API (unkeyed origin)
+    dataset_description: >
+      REST API exposing UCR summary, NIBRS-derived, arrest, homicide, hate-crime,
+      use-of-force and law-enforcement-employment data. The cde.ucr.cjis.gov/LATEST origin
+      is the backend the CDE web application itself calls; it serves the identical routes
+      with no API key and no advertised rate limit.
+    source_url: https://cde.ucr.cjis.gov/LATEST
+    documentation_url: https://api.data.gov/docs/developer-manual/
+    access_method: rest_api
+    api_endpoint: https://cde.ucr.cjis.gov/LATEST/{route}
+    geographic_level: [national, state, agency]
+    coverage_start_year: 1985
+    coverage_end_year: 2026
+    update_frequency: continuous
+    latest_release_date: 2026-08-15
+    license: US Government work, public domain. No explicit license text is published.
+    primary_identifier: ori9_nibrs
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - Undocumented and unversioned; the LATEST path segment changes on redeploy.
+      - No OpenAPI specification exists; the endpoint catalog was reverse-engineered.
+      - No SLA or deprecation notice. A keyed api.data.gov fallback is configured.
+    fallback:
+      api_endpoint: https://api.usa.gov/crime/fbi/cde/{route}?API_KEY={key}
+      verified_http_status: 200
+      note: >
+        403 without a key. Rate limits are hourly and per key; a newly issued key was
+        observed at 10 requests/hour, standard keys at 1000/hour.
+
+  - source_id: fbi-cde-agency-directory
+    source_name: FBI Crime Data Explorer
+    publisher: FBI CJIS Division
+    dataset_name: Agency (ORI) directory
+    dataset_description: >
+      The live universe of ORIs enrolled in the UCR program, with agency name, agency type,
+      county name and a point coordinate. The only current, machine-retrievable national
+      agency list that needs no human login.
+    source_url: https://cde.ucr.cjis.gov/LATEST/agency/byStateAbbr/{STATE}
+    documentation_url: https://cde.ucr.cjis.gov/LATEST/webapp/
+    access_method: rest_api
+    geographic_level: [agency]
+    coverage_start_year: 2026
+    coverage_end_year: 2026
+    update_frequency: continuous
+    license: US Government work, public domain
+    primary_identifier: ori9_nibrs
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - No national bulk endpoint; one request per state (56 including territories).
+      - No FIPS place code. County NAME only, and multi-county agencies appear under
+        composite keys such as "KENT, SUSSEX" and "UNMAPPED COUNTY".
+      - No personnel counts.
+      - Reflects UCR enrollment, which includes agencies that never submit data.
+      - An ORI is a reporting identifier, not an agency. One agency can hold several.
+
+  - source_id: fbi-nibrs-agencies
+    source_name: FBI NIBRS state extracts
+    publisher: FBI CJIS Division
+    dataset_name: agencies.csv (agency dimension inside each NIBRS state ZIP)
+    dataset_description: >
+      A 59-column agency-year table shipped inside every NIBRS state ZIP. The only published
+      source carrying BOTH the NIBRS ORI9 and the legacy ORI9, which makes it the platform's
+      identifier bridge. Also carries employment counts, participation flags, dormancy,
+      population group, MSA, and the covered_by_legacy_ori parent pointer.
+    source_url: https://cde.ucr.cjis.gov/LATEST/s3/signedurl?key=nibrs/incident/{year}/{ST}-{year}.zip
+    documentation_url: https://cde.ucr.cjis.gov/LATEST/webapp/#/pages/downloads
+    access_method: bulk_zip
+    geographic_level: [agency]
+    coverage_start_year: 1991
+    coverage_end_year: 2025
+    update_frequency: annual
+    license: US Government work, public domain
+    primary_identifier: ori9_nibrs
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - One ZIP per state per year; California 2025 is 117 MB, Texas 116 MB.
+      - Presigned URLs expire after 900 seconds; sign immediately before each fetch.
+      - Covers NIBRS-participating agencies, so coverage tracks the onboarding curve.
+    ingestion_note: >
+      The platform reads the ZIP central directory over HTTP range requests and fetches only
+      the agencies.csv member, turning a ~2 GB national download into roughly 40 MB.
+
+  - source_id: fbi-ucr-pe-master
+    source_name: FBI UCR Police Employee (PE) master files
+    publisher: FBI CJIS Division
+    dataset_name: pe-{year}.zip
+    dataset_description: >
+      Fixed-width agency-year employment file, LRECL 7689, keyed on ORI7. Sworn and civilian
+      counts by sex, population served, and officer/employee rates per 1,000.
+    source_url: https://cde.ucr.cjis.gov/LATEST/s3/signedurl?key=master_files/pe/pe-{year}.zip
+    access_method: bulk_zip
+    geographic_level: [agency]
+    coverage_start_year: 1991
+    coverage_end_year: 2024
+    update_frequency: annual
+    license: US Government work, public domain
+    primary_identifier: ori7
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - >
+        pe-2025.zip downloads successfully and is ZERO-FILLED: 26,288 records, every
+        employment count 0. Bulk PE is trustworthy only through 2024. A load-time assertion
+        rejects any PE year whose total employees sum to zero.
+      - >
+        Keyed on ORI7. The correct bridge is legacy_ori[:7], NOT ori[:7]; deriving ORI7 from
+        the NIBRS ori drops agencies whose forms differ in positions 7-9.
+      - Carries a larger, partly historical universe than the live directory.
+    coverage_measured:
+      2024: {records: 26136, with_employment_data: 15022, sum_total_employees: 1135770}
+      2025: {records: 26288, with_employment_data: 0, sum_total_employees: 0}
+
+  - source_id: fbi-ucr-summarized
+    source_name: FBI UCR Summarized offenses and clearances
+    publisher: FBI CJIS Division
+    dataset_name: Summarized crime time series
+    dataset_description: >
+      Monthly counts, rates and clearances for Part I offenses at national, state and agency
+      level. Date parameters are MM-YYYY; a bare YYYY returns HTTP 400.
+    source_url: https://cde.ucr.cjis.gov/LATEST/summarized/{level}/{key}/{offense}
+    access_method: rest_api
+    geographic_level: [national, state, agency]
+    coverage_start_year: 1985
+    coverage_end_year: 2025
+    update_frequency: monthly
+    license: US Government work, public domain
+    primary_identifier: ori9_nibrs
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - >
+        Twenty states no longer submit SRS at all (AR CO DE ID IA KY MI MT NV NH NC ND RI SC
+        SD TN VT VA WV WY). This is structural, not a lag, and will not backfill.
+      - >
+        2026 is fractional. National monthly violent-crime offenses fall from 87,397 in
+        Dec 2025 to 42,498 in Jul 2026 to 4,696 in Aug 2026. The platform sets a hard
+        cutoff at 2025-12 for any level or year-over-year comparison.
+      - >
+        The 2021 SRS-to-NIBRS transition leaves roughly 31% of agencies without 2021 data.
+        Several FBI CIUS table families skip 2021 entirely.
+
+  - source_id: bjs-csllea-2018
+    source_name: Bureau of Justice Statistics
+    publisher: US DOJ, Office of Justice Programs, BJS
+    dataset_name: Census of State and Local Law Enforcement Agencies, 2018
+    dataset_description: >
+      A complete enumeration of publicly funded state, county, local, tribal and
+      special-jurisdiction agencies employing at least one FTE sworn officer with general
+      arrest powers. The best statistical universe available, and the platform's
+      reconciliation benchmark for agency counts.
+    source_url: https://bjs.ojp.gov/data-collection/census-state-and-local-law-enforcement-agencies-csllea
+    documentation_url: https://bjs.ojp.gov/library/publications/census-state-and-local-law-enforcement-agencies-2018-statistical-tables
+    access_method: bulk_zip
+    api_endpoint: https://bjs.ojp.gov/media/67831/download
+    geographic_level: [national, state]
+    coverage_start_year: 2018
+    coverage_end_year: 2018
+    update_frequency: irregular (1992, 1996, 2000, 2004, 2008, 2018; 2014 failed; 2022 unreleased)
+    latest_release_date: 2022-10-19
+    license: US Government work, public domain
+    primary_identifier: none (aggregate tables); BJS agency ID in the microdata
+    ingestion_status: active (aggregate tables only)
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - >
+        Only the AGGREGATE publication tables are script-downloadable. Agency-level
+        microdata sits on ICPSR behind a login, and ICPSR returns 403 to browserless
+        clients. No unattended refresh is possible.
+      - Published universe is eight years stale; the 2022 wave was fielded but not released.
+      - Excludes agencies below one FTE sworn officer, and excludes federal agencies.
+      - Publication tables carry an 8-row metadata preamble and a two-tier merged header.
+    headline_figures:
+      agencies_total: 17541
+      local_police: 11824
+      sheriffs_offices: 3051
+      special_jurisdiction: 1753
+      constable_marshal: 647
+      tribal: 217
+      primary_state: 49
+      full_time_sworn: 787565
+
+  - source_id: bjs-leaic-2012
+    source_name: BJS Law Enforcement Agency Identifiers Crosswalk
+    publisher: US DOJ / BJS, archived at NACJD/ICPSR
+    dataset_name: Law Enforcement Agency Identifiers Crosswalk, United States, 2012
+    dataset_description: >
+      The only federally published ORI-to-FIPS/Census-government crosswalk. Contains ORI
+      codes with FIPS state, county and place codes plus Governments Integrated Directory
+      identifiers.
+    source_url: https://www.icpsr.umich.edu/web/NACJD/studies/35158
+    documentation_url: https://catalog.data.gov/dataset/law-enforcement-agency-identifiers-crosswalk-united-states-2012
+    access_method: manual_download
+    geographic_level: [agency]
+    coverage_start_year: 2012
+    coverage_end_year: 2012
+    update_frequency: discontinued
+    latest_release_date: 2018-09-18
+    license: Public; ICPSR terms of use apply on download
+    primary_identifier: ori
+    ingestion_status: not_ingested
+    validation_status: blocked
+    verified_http_status: 403
+    known_limitations:
+      - >
+        Reference year 2012, fourteen years stale, with no successor announced. The 2018
+        "update" was a title typo correction, not a data refresh.
+      - Requires an ICPSR account; the CDN returns 403 to non-browser clients.
+      - ICPSR publishes no variable-level metadata for this series.
+    decision: >
+      Because this crosswalk is both auth-gated and stale, the platform BUILDS its own
+      ORI-to-geography resolution and treats every link as a scored, reviewable artifact
+      with its own provenance. See docs/methodology.md.
+
+  - source_id: census-gazetteer-2025
+    source_name: US Census Bureau
+    publisher: US Census Bureau, Geography Division
+    dataset_name: 2025 U.S. Gazetteer Files
+    dataset_description: >
+      Table of record for geographic identifiers, names, land/water area and internal points
+      at every summary level. The platform's county and place dimension.
+    source_url: https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/
+    documentation_url: https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/gaz-record-layouts.html
+    access_method: bulk_zip
+    geographic_level: [place, county, county_subdivision, urban_area]
+    coverage_start_year: 2025
+    coverage_end_year: 2025
+    update_frequency: annual
+    latest_release_date: 2025-09-08
+    license: US Government work, public domain
+    primary_identifier: geoid
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - >
+        Format break: 2023 and 2024 are TAB-delimited; 2025 is PIPE-delimited and adds a
+        GEOIDFQ column. A parser pinned to the 2024 layout silently produces one-column rows.
+      - Column sets differ between summary levels within the same year.
+      - INTPTLAT/INTPTLONG are internal points, not population-weighted centroids.
+
+  - source_id: census-pep-2025
+    source_name: US Census Bureau Population Estimates Program
+    publisher: US Census Bureau
+    dataset_name: Vintage 2025 Population Estimates
+    dataset_description: >
+      Modeled annual population for July 1 of each year, benchmarked to the 2020 Census.
+      The platform's PRIMARY rate denominator, because a 2025 crime count divides by a 2025
+      population.
+    source_url: https://www2.census.gov/programs-surveys/popest/datasets/2020-2025/
+    documentation_url: https://www.census.gov/programs-surveys/popest.html
+    access_method: bulk_csv
+    geographic_level: [state, county, place, county_subdivision]
+    coverage_start_year: 2020
+    coverage_end_year: 2025
+    update_frequency: annual
+    license: US Government work, public domain
+    primary_identifier: state_fips + place_fips
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - Total population only; no age, race, sex or income at place level.
+      - >
+        Vintages are not a time series. Each vintage re-estimates all prior years, so
+        V2025 POPESTIMATE2023 differs from V2024 POPESTIMATE2023.
+      - No margins of error are published; uncertainty is real but unquantified.
+      - >
+        SUMLEV is load-bearing. 162 rows are incorporated places; 061 rows are minor civil
+        divisions and will double-count against place rows in the same file.
+      - No place-level PEP is available from the Census API; bulk CSV only.
+
+  - source_id: census-acs5-2024
+    source_name: US Census Bureau American Community Survey
+    publisher: US Census Bureau
+    dataset_name: ACS 5-Year Estimates, Detailed Tables (2020-2024)
+    dataset_description: >
+      Period estimates pooling 60 months of responses, published to block group. The
+      platform's SECONDARY denominator and its only source of demographic composition.
+    source_url: https://api.census.gov/data/2024/acs/acs5
+    documentation_url: https://www.census.gov/data/developers/data-sets/acs-5year.html
+    access_method: rest_api
+    api_endpoint: https://api.census.gov/data/{vintage}/acs/acs5?get={vars}&for={geo}&in={parent}&key={key}
+    geographic_level: [state, county, county_subdivision, place, urban_area]
+    coverage_start_year: 2009
+    coverage_end_year: 2024
+    update_frequency: annual
+    latest_release_date: 2026-01-29
+    license: US Government work, public domain
+    primary_identifier: geoid
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - An API key is now MANDATORY; keyless requests return 302 to missing_key.html.
+      - >
+        A period estimate. The "2024" label spans 2020-2024, an effective midpoint of
+        mid-2022, so it lags a real 2024 denominator by roughly two years.
+      - place requires in=state:; there is no national for=place:*. A national pull is 51 calls.
+      - Margins of error are large for small places and must be carried through.
+
+  - source_id: census-urban-areas-2020
+    source_name: US Census Bureau
+    publisher: US Census Bureau, Geography Division
+    dataset_name: 2020 Census Urban Area list and relationship files
+    dataset_description: >
+      2,645 urban areas defined from 2020 Census blocks by housing-unit density, with
+      crosswalks to place and county. Supplies the platform's urbanicity band, which is a
+      required peer-cohort dimension.
+    source_url: https://www2.census.gov/geo/docs/reference/ua/2020_Census_ua_list_all.xlsx
+    documentation_url: https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural.html
+    access_method: bulk_xlsx
+    geographic_level: [urban_area]
+    coverage_start_year: 2020
+    coverage_end_year: 2020
+    update_frequency: decennial
+    license: US Government work, public domain
+    primary_identifier: uace
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - >
+        In the place relationship file, rural places have all seven UA fields EMPTY. That is
+        the rural signal, not a parse error.
+      - >
+        Places split across urban and rural appear on multiple rows; aggregating without
+        deduplicating on GEOID_PLACE_20 inflates counts.
+      - UACE is a 5-digit national code with no state prefix; zero-pad it.
+
+  - source_id: census-gov-finance-2024
+    source_name: Annual Survey of State and Local Government Finances
+    publisher: US Census Bureau, Governments Division
+    dataset_name: Individual Unit File (Public Use Format), FY2024
+    dataset_description: >
+      Record-level fixed-width file, one row per government unit per item code, in thousands
+      of dollars. Item code E62 is police-protection current operations.
+    source_url: https://www2.census.gov/programs-surveys/gov-finances/tables/2024/2024_Individual_Unit_Files.zip
+    documentation_url: https://www2.census.gov/programs-surveys/gov-finances/tables/2024/2024_methodology.pdf
+    access_method: bulk_zip
+    geographic_level: [government_unit]
+    coverage_start_year: 2024
+    coverage_end_year: 2024
+    update_frequency: annual; full universe in years ending 2 and 7
+    latest_release_date: 2026-07
+    license: US Government work, public domain
+    primary_identifier: census_gov_id_12
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - >
+        The unit of observation is a GOVERNMENT, not a police agency. No Census-to-ORI
+        crosswalk exists anywhere. The platform never publishes a per-agency spending figure.
+      - >
+        A voluntary stratified SAMPLE. 2024 covers 57.8% of counties, 20.8% of
+        municipalities and 4.9% of townships, and 26.5% of E62 values are imputed.
+      - >
+        Survey year N spans fiscal years ending 1 Jul N-1 to 30 Jun N. 62% of units close
+        06-30, 17% close 12-31. Crime data is calendar-year.
+      - >
+        Employer pension contributions are EXCLUDED from E62 for a government running its
+        own pension fund, and INCLUDED for one enrolled in a state system. Nothing in the
+        file flags which regime applies.
+      - >
+        Contract policing is reported as direct E62 by the purchasing city and also sits in
+        the providing county's total. Never sum a county and its cities.
+      - F62 is CONSTRUCTION. G62 and K62 have zero records in the public-use file.
+      - Files are revised silently in place; the 2022 file was reprocessed in July 2026.
+    coverage_measured:
+      e62_records_2024: 5931
+      e62_imputed_2024: 1569
+      e62_records_2022_census_year: 19711
+
+  - source_id: census-gus-2025
+    source_name: US Census Bureau Government Units Survey
+    publisher: US Census Bureau, Governments Division
+    dataset_name: 2025 Government Units Listing
+    dataset_description: >
+      Directory of all US governments with CENSUS_ID_PID6 and FIPS_STATE/COUNTY/PLACE. Used
+      to validate the FIPS place crosswalk that ships inside the finance file.
+    source_url: https://www2.census.gov/programs-surveys/gus/datasets/2025/gov_units_2025.zip
+    access_method: bulk_zip
+    geographic_level: [government_unit]
+    coverage_start_year: 2025
+    coverage_end_year: 2025
+    update_frequency: irregular
+    license: US Government work, public domain
+    primary_identifier: census_id_pid6
+    ingestion_status: active
+    validation_status: verified
+    verified_http_status: 200
+    known_limitations:
+      - >
+        CENSUS_ID_GIDID (the 14-character ID) is present in the 2022 listing and DROPPED
+        from 2025. Never key on it.
+      - >
+        The 2025 general-purpose universe is 38,704 units - 3,031 counties, 19,489
+        municipalities and 16,184 townships.
+
+# Sources evaluated and deliberately NOT ingested in Phase 1.
+deferred_sources:
+  - source_id: bjs-lemas-2020
+    reason: >
+      A stratified SAMPLE of general-purpose agencies, not a census, so it cannot serve as an
+      agency universe. Microdata is ICPSR-gated. Valuable for Phase 4 policy attributes with
+      weights carried through, not for the Phase 1 spine.
+  - source_id: bjs-lear-2016
+    reason: >
+      ORI- and FIPS-keyed and therefore tempting, but covers only general-purpose agencies
+      (15,810, missing ~2,600 special-jurisdiction, tribal and constable agencies), is ten
+      years old, was superseded by CSLLEA 2018, and was built partly on the failed 2014
+      CSLLEA. Historical provenance only.
+  - source_id: fbi-use-of-force
+    reason: >
+      Participation is roughly half of agencies (Alaska 2024: 24 of 47). National counts are
+      not national totals. Requires a participation-adjusted presentation before it can be
+      shown honestly.
+  - source_id: municipal-open-budgets
+    reason: >
+      Department-level appropriations are better attributed than Census function codes, but
+      each portal has its own chart of accounts. Cross-city comparison needs a normalization
+      layer that is out of scope for Phase 1. Eight Socrata portals are the natural start.
