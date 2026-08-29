@@ -9,6 +9,9 @@
 
 const BASE = (import.meta as any).env?.VITE_API_BASE ?? '';
 
+/** A self-contained build has no server; every call resolves from an embedded dataset. */
+export const IS_STATIC = (import.meta as any).env?.VITE_STATIC === '1';
+
 export class ApiError extends Error {
   readonly status: number;
   readonly url: string;
@@ -211,7 +214,7 @@ export interface MapResponse {
 
 /* ---------------------------------------------------------------- endpoints ---------- */
 
-export const api = {
+const liveApi = {
   release: () => get<Release>('/api/release'),
   overview: (year?: number) => get<Overview>(`/api/overview${qs({ year })}`),
   metrics: () => get<any>('/api/metrics'),
@@ -234,3 +237,10 @@ export const api = {
     get<any>(`/api/quality/coverage/${year}${qs(params)}`),
   qualityFlag: (checkId: string) => get<any>(`/api/quality/flags/${encodeURIComponent(checkId)}`),
 };
+
+
+// In a static build every method is replaced by the adapter in api.static.ts. The interface
+// is identical, so no route knows the difference.
+export const api: typeof liveApi = IS_STATIC
+  ? (await import('./api.static')).staticApi as unknown as typeof liveApi
+  : liveApi;

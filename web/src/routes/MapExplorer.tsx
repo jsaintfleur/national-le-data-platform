@@ -31,6 +31,8 @@ import {
   DASH, denominatorLabel, fmt, fmtCompact, fmtDecimal, fmtRate,
 } from '../lib/format';
 import { EmptyState, ErrorState, Loading, Notice, Withheld, useAsync } from '../components/primitives';
+import { loadGeo } from '../lib/geo';
+import { configureMapWorker } from '../lib/maplibre-worker';
 
 type Layer = 'agency' | 'state' | 'county';
 
@@ -172,15 +174,22 @@ export default function MapExplorer() {
 
 /* ------------------------------------------------------------------ canvas ----------- */
 
+// The contiguous United States. Alaska, Hawaii and the territories are present in the
+// geometry and reachable by zooming out; including them in the default frame would render
+// the lower 48 — where nearly every agency is — too small to read.
+const CONUS = new maplibregl.LngLatBounds([-124.8, 24.4], [-66.9, 49.4]);
+
 function MapCanvas({ data, layer, onSelect, fitToFeatures }: {
   data: MapResponse; layer: Layer; onSelect: (f: any) => void; fitToFeatures: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
   const [ready, setReady] = useState(false);
+  const [layerError, setLayerError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!container.current || map.current) return;
+    configureMapWorker();
     const m = new maplibregl.Map({
       container: container.current,
       // No external basemap. Tiles would be a third-party dependency and a privacy surface,
@@ -192,8 +201,10 @@ function MapCanvas({ data, layer, onSelect, fitToFeatures }: {
       },
       // No symbol layers are used, so no glyph endpoint is needed. Declaring `glyphs` as
       // undefined fails MapLibre's style validation; omitting the key is the correct form.
-      center: [-97, 38.6],
-      zoom: 3.3,
+      // Framing is set by fitBounds once the container has its real size (below). These are
+      // only the values the map holds for the frame before that happens.
+      center: [-96, 38.5],
+      zoom: 3,
       minZoom: 2.4,
       maxZoom: 11,
       attributionControl: false,
@@ -223,10 +234,22 @@ function MapCanvas({ data, layer, onSelect, fitToFeatures }: {
       if (!m.hasImage('nodata-hatch')) {
         m.addImage('nodata-hatch', { width: S, height: S, data: new Uint8Array(img.data) });
       }
+      // A fixed center and zoom frames the country correctly at exactly one container size.
+      // At any other one it leaves dead space on one axis and clips the other, which at
+      // 1440px cut the eastern seaboard. Fit to the contiguous bounds instead, so the
+      // framing is derived from the pane the map actually got.
+      m.fitBounds(CONUS, { padding: 24, duration: 0 });
       setReady(true);
     });
+
+    // The pane changes size without the window doing so: the sidebar collapses at the
+    // mobile breakpoint, and the selection card reflows beneath the map. MapLibre reads its
+    // canvas size only when told to.
+    const ro = new ResizeObserver(() => m.resize());
+    ro.observe(container.current);
+
     map.current = m;
-    return () => { m.remove(); map.current = null; };
+    return () => { ro.disconnect(); m.remove(); map.current = null; };
   }, []);
 
   // Value lookup and breaks derived from the response, so the ramp always matches the legend.
@@ -244,6 +267,7 @@ function MapCanvas({ data, layer, onSelect, fitToFeatures }: {
     const m = map.current;
     if (!m || !ready) return;
     let cancelled = false;
+    setLayerError(null);
 
     (async () => {
       for (const id of ['choropleth', 'choropleth-nodata', 'choropleth-line',
@@ -252,7 +276,7 @@ function MapCanvas({ data, layer, onSelect, fitToFeatures }: {
       }
       for (const id of ['poly', 'points', 'states']) if (m.getSource(id)) m.removeSource(id);
 
-      const statesGeo = await fetch('/geo/states.geojson').then((r) => r.json());
+      const statesGeo = await loadGeo('states');
       if (cancelled) return;
 
       const color = (v: number | null | undefined) => {
@@ -314,9 +338,7 @@ function MapCanvas({ data, layer, onSelect, fitToFeatures }: {
           m.fitBounds(b, { padding: 60, maxZoom: 9, duration: 0 });
         }
       } else {
-        const src = layer === 'state'
-          ? statesGeo
-          : await fetch('/geo/counties.geojson').then((r) => r.json());
+        const src = layer === 'state' ? statesGeo : await loadGeo('counties');
         if (cancelled) return;
         const keyed = {
           ...src,
@@ -360,12 +382,25 @@ function MapCanvas({ data, layer, onSelect, fitToFeatures }: {
           m.on('mouseleave', id, () => { m.getCanvas().style.cursor = ''; });
         }
       }
-    })();
+    })().catch((err) => {
+      // A layer this build does not carry is reported, not swallowed.
+      if (!cancelled) setLayerError(err instanceof Error ? err.message : String(err));
+    });
 
     return () => { cancelled = true; };
   }, [ready, data, layer, valueBy, breaks, onSelect, fitToFeatures]);
 
-  return <div ref={container} style={{ position: 'absolute', inset: 0 }} aria-label="National map" role="application" />;
+  return (
+    <>
+      <div ref={container} style={{ position: 'absolute', inset: 0 }}
+           aria-label="National map" role="application" />
+      {layerError && (
+        <div style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 6 }}>
+          <div className="notice warn"><span className="t">Layer unavailable</span>{layerError}</div>
+        </div>
+      )}
+    </>
+  );
 }
 
 /* ------------------------------------------------------------------ legend ----------- */

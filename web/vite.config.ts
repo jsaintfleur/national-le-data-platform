@@ -36,8 +36,13 @@ function maplibreWorker(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), maplibreWorker()],
+export default defineConfig(({ mode }) => {
+  // The self-contained build has no server and no code-splitting: everything is inlined into
+  // one file, so a route chunk it could not fetch would simply never load.
+  const isStatic = mode === 'static';
+  return {
+  define: isStatic ? { 'import.meta.env.VITE_STATIC': JSON.stringify('1') } : {},
+  plugins: [react(), ...(isStatic ? [] : [maplibreWorker()])],
   server: {
     host: '127.0.0.1',
     port: 5173,
@@ -49,5 +54,16 @@ export default defineConfig({
     host: '127.0.0.1', port: 4173,
     proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true } },
   },
-  build: { outDir: 'dist', sourcemap: false, chunkSizeWarningLimit: 1100 },
+  build: isStatic
+    ? {
+        outDir: 'dist-static',
+        sourcemap: false,
+        assetsInlineLimit: 100_000_000,   // inline every asset the bundle references
+        cssCodeSplit: false,
+        chunkSizeWarningLimit: 100_000,
+        modulePreload: { polyfill: false },
+        rollupOptions: { output: { inlineDynamicImports: true } },
+      }
+    : { outDir: 'dist', sourcemap: false, chunkSizeWarningLimit: 1100 },
+  };
 });

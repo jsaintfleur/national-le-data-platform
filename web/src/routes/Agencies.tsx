@@ -741,7 +741,36 @@ function buildCsv(opts: {
   return `${head}\n\n${header}\n${body}\n`;
 }
 
-function download(name: string, csv: string) {
+// Two hosts, two ways to hand over a file. A served deployment is an ordinary page, where
+// an anchor with a `download` attribute works. The self-contained build runs in a sandboxed
+// viewer that never grants a frame download permission, so the same anchor silently does
+// nothing — the worst failure mode for an export button, because the user believes they have
+// the file. Where the host offers a mediated save, use it; the viewer confirms, and a refusal
+// is reported rather than swallowed.
+const DOWNLOAD_MESSAGES: Record<string, string> = {
+  too_large: 'The file is over the 16 MB limit this viewer allows. Narrow the filters and '
+    + 'export again, or use a page-sized export.',
+  rate_limited: 'A save prompt is already open. Finish it, then export again.',
+  rejected_extension: 'This viewer does not allow saving CSV files.',
+  extension_not_enabled: 'This viewer does not allow saving CSV files.',
+};
+
+async function download(name: string, csv: string): Promise<string | null> {
+  const use = (window as any).claude?.use;
+  if (typeof use === 'function') {
+    const downloads = await use('downloads');
+    if (downloads) {
+      try {
+        await downloads.save({ filename: name, data: csv });
+        return null;
+      } catch (e: any) {
+        // The viewer declining is an answer, not a failure; saying nothing is correct.
+        if (e?.code === 'declined') return null;
+        return DOWNLOAD_MESSAGES[e?.code]
+          ?? 'The file could not be saved from this viewer.';
+      }
+    }
+  }
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -751,6 +780,7 @@ function download(name: string, csv: string) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+  return null;
 }
 
 function ExportControls(props: {
@@ -773,15 +803,16 @@ function ExportControls(props: {
 
   const stamp = new Date().toISOString().slice(0, 10);
 
-  const exportPage = () => {
+  const exportPage = async () => {
+    setFailed(null);
     const first = (page - 1) * pageSize + 1;
-    download(
+    setFailed(await download(
       `agencies-${year}-page-${page}-${stamp}.csv`,
       buildCsv({
         rows, year, filters, sort, direction, releaseId, builtAt,
         scope: `this page only — ${first} to ${first + rows.length - 1} of ${total} matching agencies`,
       }),
-    );
+    ));
   };
 
   const exportAll = async () => {
@@ -798,13 +829,13 @@ function ExportControls(props: {
         collected.push(...chunk.results);
         setProgress({ done: collected.length, total });
       }
-      download(
+      setFailed(await download(
         `agencies-${year}-all-matching-${stamp}.csv`,
         buildCsv({
           rows: collected, year, filters, sort, direction, releaseId, builtAt,
           scope: `every agency matching the filters — ${collected.length} of ${total} reported by the server`,
         }),
-      );
+      ));
     } catch (e) {
       setFailed(e instanceof Error ? e.message : 'The export could not be completed.');
     } finally {

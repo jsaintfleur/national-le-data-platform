@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:static": "tsc -b && vite build --mode static && esbuild node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs --bundle --format=iife --minify --target=es2020 --outfile=dist-static/maplibre-worker.js --log-level=error"
   },
   "dependencies": {
     "maplibre-gl": "^6.6.0",
@@ -20,6 +21,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "esbuild": "^0.28.2",
     "oxlint": "^1.79.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
